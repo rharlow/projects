@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hawaii Course Social Builder</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <strong>Hawaii Course</strong> social builder
+    <span id="status" class="status"></span>
+  </div>
+  <div class="topbar-actions">
+    <button id="btn-new" class="ghost">New post</button>
+    <button id="btn-save" class="primary">Save post</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <section class="panel">
+      <h2>Library</h2>
+      <ul id="library" class="library"></ul>
+    </section>
+    <section class="panel">
+      <details>
+        <summary><h2>Course brief</h2></summary>
+        <p class="hint">Facts Claude is allowed to use. Edit and save when something changes.</p>
+        <form id="brief-form" class="brief-form"></form>
+        <div class="row">
+          <button id="brief-save" class="primary" type="button">Save brief</button>
+          <button id="brief-reset" class="ghost" type="button">Reset to default</button>
+        </div>
+      </details>
+    </section>
+  </aside>
+
+  <main class="main">
+    <section class="panel step">
+      <div class="step-head"><span class="num">1</span><h2>Angle</h2>
+        <button id="btn-angles" class="ghost small">Suggest angles with Claude</button></div>
+      <div id="angles" class="chips"></div>
+      <label>What is this post about?
+        <textarea id="angle" rows="3" placeholder="Example: Why the surgeon versus gastroenterologist debate at this course changes how you work up dysphagia."></textarea></label>
+      <label>Notes for the writer (optional)
+        <input id="notes" placeholder="Example: mention Pandolfino's GERD mimics talk was the top-rated session last year."></label>
+      <div class="row">
+        <button id="btn-copy" class="primary">Generate copy and image prompt</button>
+        <button id="btn-variant" class="ghost">Another take</button>
+        <span id="copy-busy" class="busy hidden">Writing…</span>
+      </div>
+    </section>
+
+    <section class="panel step">
+      <div class="step-head"><span class="num">2</span><h2>Copy</h2>
+        <div class="tabs" id="platform-tabs">
+          <button data-p="linkedin" class="tab active">LinkedIn</button>
+          <button data-p="facebook" class="tab">Facebook</button>
+          <button data-p="instagram" class="tab">Instagram</button>
+        </div></div>
+      <div class="copy-grid">
+        <div>
+          <textarea id="copy-body" rows="14" placeholder="Post text appears here. Keep {LINK} where the tracked link should go."></textarea>
+          <div class="row wrap">
+            <span id="char-count" class="hint"></span>
+            <button class="ghost small rewrite" data-i="Make it shorter and tighter without losing the clinical hook.">Shorter</button>
+            <button class="ghost small rewrite" data-i="Make the hook sharper and more specific. Keep the rest.">Sharper hook</button>
+            <button class="ghost small rewrite" data-i="Make it more clinical and specific, less promotional.">More clinical</button>
+            <button class="ghost small rewrite" data-i="Make it warmer and more personal, as if a colleague wrote it.">Warmer</button>
+            <span id="rewrite-busy" class="busy hidden">Rewriting…</span>
+          </div>
+          <label>Hashtags <input id="copy-tags" placeholder="#Foregut #GERD"></label>
+          <label>Alt text <input id="copy-alt" placeholder="Image description for accessibility"></label>
+        </div>
+        <div class="link-box">
+          <h3>Tracked link</h3>
+          <label>Destination
+            <select id="link-target">
+              <option value="website">Website home</option>
+              <option value="registration">Registration page</option>
+            </select></label>
+          <label>Campaign <input id="link-campaign" value="hawaii2027"></label>
+          <code id="link-preview" class="link-preview"></code>
+          <h3>Ready to paste</h3>
+          <pre id="copy-final" class="final"></pre>
+          <div class="row">
+            <button id="btn-copy-clip" class="primary small">Copy post to clipboard</button>
+            <button id="btn-copy-link" class="ghost small">Copy link only</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel step">
+      <div class="step-head"><span class="num">3</span><h2>Image</h2></div>
+      <div class="image-grid">
+        <div class="image-source">
+          <div class="row">
+            <label class="file">Upload photo <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
+            <span class="hint">PNG, JPEG, or WebP. Landscape works for every size.</span>
+          </div>
+          <label>Image prompt (Claude drafts this; edit freely)
+            <textarea id="image-prompt" rows="4" placeholder="Describe the photograph you want."></textarea></label>
+          <div class="row">
+            <select id="image-orientation">
+              <option value="landscape">Landscape</option>
+              <option value="square">Square</option>
+              <option value="portrait">Portrait</option>
+            </select>
+            <button id="btn-generate" class="primary">Generate image</button>
+            <span id="image-busy" class="busy hidden">Generating…</span>
+            <span id="image-note" class="hint"></span>
+          </div>
+          <h3>Recent images</h3>
+          <div id="gallery" class="gallery"></div>
+        </div>
+
+        <div class="composer">
+          <h3>Composer</h3>
+          <div class="controls">
+            <label>Size
+              <select id="size">
+                <option value="square">Square 1080×1080 (Instagram, LinkedIn, Facebook)</option>
+                <option value="portrait">Portrait 1080×1350 (Instagram feed)</option>
+                <option value="link">Link 1200×628 (LinkedIn, Facebook link cards)</option>
+                <option value="story">Story 1080×1920 (Instagram and Facebook stories)</option>
+              </select></label>
+            <label>Headline <input id="ov-headline" maxlength="60"></label>
+            <label>Subline <input id="ov-subline" maxlength="90"></label>
+            <label>Footer <input id="ov-footer"></label>
+            <div class="row">
+              <label>Layout
+                <select id="ov-layout">
+                  <option value="gradient">Bottom gradient</option>
+                  <option value="band">Solid band</option>
+                  <option value="top">Top gradient</option>
+                  <option value="none">Text only</option>
+                </select></label>
+              <label>Accent <input id="ov-accent" type="color" value="#0f6f8f"></label>
+              <label>Text <input id="ov-text" type="color" value="#ffffff"></label>
+              <label>Text size <input id="ov-scale" type="range" min="70" max="140" value="100"></label>
+            </div>
+            <div class="row">
+              <label>Focus X <input id="focal-x" type="range" min="0" max="100" value="50"></label>
+              <label>Focus Y <input id="focal-y" type="range" min="0" max="100" value="50"></label>
+              <label class="file">Logo <input id="logo-input" type="file" accept="image/png,image/svg+xml,image/jpeg"></label>
+              <button id="logo-clear" class="ghost small">Clear logo</button>
+            </div>
+          </div>
+          <div class="canvas-wrap"><canvas id="canvas" width="1080" height="1080"></canvas></div>
+          <div class="row">
+            <button id="btn-download" class="primary">Download PNG</button>
+            <button id="btn-export-all" class="ghost">Export all four sizes</button>
+            <span id="export-note" class="hint"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel step">
+      <div class="step-head"><span class="num">4</span><h2>Schedule</h2></div>
+      <div class="row wrap">
+        <label>Title <input id="post-title" placeholder="Internal name"></label>
+        <label>Status
+          <select id="post-status">
+            <option value="draft">Draft</option>
+            <option value="ready">Ready</option>
+            <option value="scheduled">Scheduled</option>
+            <option value="posted">Posted</option>
+          </select></label>
+        <label>Date <input id="post-date" type="date"></label>
+        <label>Platforms
+          <span class="checks">
+            <label><input type="checkbox" class="pf" value="linkedin" checked> LinkedIn</label>
+            <label><input type="checkbox" class="pf" value="facebook" checked> Facebook</label>
+            <label><input type="checkbox" class="pf" value="instagram" checked> Instagram</label>
+          </span></label>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

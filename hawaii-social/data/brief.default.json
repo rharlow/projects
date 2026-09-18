@@ -1,0 +1,33 @@
+{
+  "courseName": "Medical and Surgical Aspects of Esophageal and Foregut Disorders: Pathophysiology and Treatment",
+  "shortName": "2027 Hawaii Course",
+  "edition": "42nd annual course",
+  "dates": "February 4 to 9, 2027",
+  "venue": "The Royal Sonesta Kaua'i Resort, Lihue (five minutes from the airport)",
+  "island": "Kaua'i",
+  "organizer": "Foregut Disease Foundation (Foundation for Research and Education in Esophageal and Foregut Disease)",
+  "directors": "Steve DeMeester, MD (thoracic and foregut surgeon) and Stu Spechler, MD (gastroenterologist, Baylor). Phil Katz, MD remains active in program development and as faculty.",
+  "founders": "Started by Tom DeMeester, MD and Don Castell, MD. Known for spirited surgeon versus gastroenterologist debate.",
+  "audience": "Gastroenterologists, foregut and thoracic surgeons, general and bariatric surgeons who treat esophageal disease, pathologists, fellows, and allied health teams building a swallowing center.",
+  "goal": "Attract surgeons and gastroenterologists who have never attended, and get them to click through to the website and register.",
+  "sellingPoints": [
+    "Small-group classroom feel. Every lecture is followed by real time for questions and often vigorous debate between faculty and attendees.",
+    "Faculty mixes surgeons, gastroenterologists, and pathologists, so you hear both sides of every controversy.",
+    "Lectures are literature-backed and immediately applicable to patient care.",
+    "AMA PRA Category 1 CME through joint providership with HCA-HealthONE.",
+    "Sessions run mornings and a lunch and learn, leaving afternoons free on Kaua'i.",
+    "Registration includes course materials, breakfast and breaks, and receptions. Registrants get a private link to the discounted hotel block, which fills quickly.",
+    "Topics include GERD diagnostics and GERD mimics, Barrett's esophagus, achalasia and motility, eosinophilic esophagitis, hiatal and paraesophageal hernia, anti-reflux surgery options (fundoplication, LINX, TIF, RefluxStop), H. pylori, gastroparesis, bariatric surgery and GLP-1s, and esophageal and GEJ adenocarcinoma."
+  ],
+  "registrationFee": "$1,500",
+  "websiteUrl": "https://foregutdiseasefoundation.org",
+  "registrationUrl": "https://foregutdiseasefoundation.org/2027-registration",
+  "contactEmail": "foregutfoundation@gmail.com",
+  "voice": "Plain, confident, collegial. Written by a physician for physicians. No hype, no exclamation points, no emojis on LinkedIn. Short sentences. Lead with the clinical hook, then the course, then the link. Never use em-dashes. Use oxford commas.",
+  "hashtags": ["#Foregut", "#Esophagus", "#GERD", "#Barretts", "#Achalasia", "#GISurgery", "#Gastroenterology", "#CME", "#ForegutCourse2027"],
+  "brand": {
+    "accent": "#0f6f8f",
+    "text": "#ffffff",
+    "footer": "foregutdiseasefoundation.org"
+  }
+}
