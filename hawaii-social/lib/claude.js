@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { z } from "zod";
+import * as z from "zod/v4";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
 const MODEL = process.env.CLAUDE_MODEL || "claude-opus-5";
