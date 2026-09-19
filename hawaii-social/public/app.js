@@ -41,7 +41,7 @@ const state = {
   copy: { linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy() },
   imagePrompt: "", imageUrl: null, imageSource: null,
   img: null, logo: null, logoUrl: null,
-  overlay: { headline: "", subline: "", footer: "", layout: "gradient", accent: "#0f6f8f", text: "#ffffff", scale: 100, fx: 50, fy: 50, size: "square" },
+  overlay: { headline: "", subline: "", footer: "", layout: "gradient", accent: "#0f6f8f", text: "#ffffff", scale: 100, fx: 50, fy: 50, size: "square", topScrim: 0, bottomScrim: 82, logoScale: 22, logoPos: "tr" },
   title: "", postStatus: "draft", date: "", platforms: ["linkedin", "facebook", "instagram"],
   variant: 0,
 };
@@ -216,12 +216,14 @@ $("#logo-input").onchange = async (e) => {
 $("#logo-clear").onclick = () => { state.logo = null; state.logoUrl = null; try { localStorage.removeItem("hawaii-logo"); } catch {} render(); };
 
 /* ---------- Composer ---------- */
-const OV = ["headline", "subline", "footer", "layout", "accent", "text", "scale"];
+const OV_TEXT = ["headline", "subline", "footer", "layout", "accent", "text", "logoPos"];
+const OV_NUM = ["scale", "topScrim", "bottomScrim", "logoScale"];
+const OV = [...OV_TEXT, ...OV_NUM];
 function syncOverlayInputs() {
   for (const k of OV) $(`#ov-${k}`).value = state.overlay[k];
   $("#focal-x").value = state.overlay.fx; $("#focal-y").value = state.overlay.fy; $("#size").value = state.overlay.size;
 }
-for (const k of OV) $(`#ov-${k}`).oninput = (e) => { state.overlay[k] = k === "scale" ? Number(e.target.value) : e.target.value; render(); };
+for (const k of OV) $(`#ov-${k}`).oninput = (e) => { state.overlay[k] = OV_NUM.includes(k) ? Number(e.target.value) : e.target.value; render(); };
 $("#focal-x").oninput = (e) => { state.overlay.fx = Number(e.target.value); render(); };
 $("#focal-y").oninput = (e) => { state.overlay.fy = Number(e.target.value); render(); };
 $("#size").onchange = (e) => { state.overlay.size = e.target.value; render(); };
@@ -246,20 +248,39 @@ function renderTo(canvas, sizeKey) {
   else { const g = ctx.createLinearGradient(0, 0, w, h); g.addColorStop(0, o.accent); g.addColorStop(1, "#0c1a22"); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); }
 
   const base = Math.min(w, h); const k = o.scale / 100;
-  const pad = base * 0.07; const headSize = base * 0.072 * k; const subSize = base * 0.034 * k; const footSize = base * 0.026 * k;
+  const pad = base * 0.07; const maxTextW = w - pad * 2;
+  const subSize = base * 0.034 * k; const footSize = base * 0.026 * k;
   const font = (size, weight) => `${weight} ${size}px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif`;
-
-  ctx.font = font(headSize, 700); const headLines = wrapLines(ctx, o.headline, w - pad * 2);
-  ctx.font = font(subSize, 400); const subLines = wrapLines(ctx, o.subline, w - pad * 2);
-  const blockH = headLines.length * headSize * 1.1 + (subLines.length ? subSize * 0.6 + subLines.length * subSize * 1.3 : 0);
-  const footH = o.footer ? footSize * 2.2 : 0;
   const top = o.layout === "top";
 
-  if (o.layout === "gradient" || top) {
-    const g = top ? ctx.createLinearGradient(0, 0, 0, h * 0.6) : ctx.createLinearGradient(0, h * 0.35, 0, h);
-    g.addColorStop(0, top ? "rgba(0,0,0,0.78)" : "rgba(0,0,0,0)"); g.addColorStop(1, top ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.82)");
+  // Headline auto-fit: shrink until it fits three lines, so a long headline
+  // never runs off the canvas or crowds the subline.
+  let headSize = base * 0.072 * k; let headLines = [];
+  for (let i = 0; i < 40; i++) {
+    ctx.font = font(headSize, 700);
+    headLines = wrapLines(ctx, o.headline, maxTextW);
+    if (headLines.length <= 3 || headSize <= base * 0.032) break;
+    headSize *= 0.94;
+  }
+  ctx.font = font(subSize, 400); const subLines = wrapLines(ctx, o.subline, maxTextW);
+  const blockH = headLines.length * headSize * 1.1 + (subLines.length ? subSize * 0.6 + subLines.length * subSize * 1.3 : 0);
+  const footH = o.footer ? footSize * 2.2 : 0;
+
+  // Shading. Top and bottom are independent, so a logo in a bright sky can be
+  // darkened without moving the text or changing the layout.
+  const bottomAlpha = (o.layout === "band" ? 0 : o.bottomScrim / 100) * (top ? 0.35 : 1);
+  if (bottomAlpha > 0.01) {
+    const g = ctx.createLinearGradient(0, h * 0.35, 0, h);
+    g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${bottomAlpha})`);
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  } else if (o.layout === "band") {
+  }
+  const topAlpha = Math.max(o.topScrim / 100, top ? 0.78 : 0);
+  if (topAlpha > 0.01) {
+    const g = ctx.createLinearGradient(0, 0, 0, h * (top ? 0.6 : 0.34));
+    g.addColorStop(0, `rgba(0,0,0,${topAlpha})`); g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  }
+  if (o.layout === "band") {
     const bandH = blockH + footH + pad * 1.6; ctx.fillStyle = hexToRgba(o.accent, 0.94); ctx.fillRect(0, h - bandH, w, bandH);
   }
 
@@ -277,8 +298,14 @@ function renderTo(canvas, sizeKey) {
     ctx.beginPath(); ctx.roundRect(pad, fy, pw, ph, ph / 2); ctx.fill();
     ctx.fillStyle = o.text; ctx.fillText(o.footer, pad + footSize * 0.8, fy + (ph - footSize) / 2 - footSize * 0.05);
   }
+
   if (state.logo) {
-    const lh = base * 0.085, lw = state.logo.width * (lh / state.logo.height); const lx = w - pad - lw, ly = top ? h - pad - lh : pad;
+    // Sized by width, because these logos are wide lockups whose height says
+    // little about how large the wordmark actually reads.
+    const lw = w * (o.logoScale / 100); const lh = state.logo.height * (lw / state.logo.width);
+    const right = o.logoPos.endsWith("r"); const atTop = o.logoPos.startsWith("t");
+    const lx = right ? w - pad - lw : pad;
+    const ly = atTop ? pad : h - pad - lh - (o.footer && !right ? footH : 0);
     ctx.drawImage(state.logo, lx, ly, lw, lh);
   }
 }

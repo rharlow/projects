@@ -28,7 +28,7 @@ const PlatformCopy = z.object({
 
 const PostPackage = z.object({
   angleTitle: z.string().describe("Short internal label for this post idea."),
-  headline: z.string().describe("Overlay headline for the graphic. Max 8 words. No period."),
+  headline: z.string().describe("Overlay headline for the graphic. Max 8 words, in sentence case (capitalize only the first word and proper nouns, so \"GERD, or something wearing its symptoms\", never \"GERD, Or Something Wearing Its Symptoms\"). No period."),
   subline: z.string().describe("Overlay subline for the graphic. Max 12 words, usually dates and island or the one-line promise."),
   imagePrompt: z.string().describe("A detailed prompt for an image generation model. Photographic, editorial, no text or logos in the image, no faces of identifiable real people, no fabricated medical imagery. Describe scene, light, lens, and mood."),
   linkedin: PlatformCopy,
@@ -91,7 +91,7 @@ Platform rules:
 - Facebook: 500 to 900 characters. Warmer and more conversational, may address the reader as "you", one emoji at most and only if it fits. Two to four hashtags.
 - Instagram: 500 to 1,200 characters. Hook in the first 125 characters because that is what shows before "more". Short lines. Eight to fifteen hashtags. Since Instagram captions cannot carry a clickable link, the CTA says "link in bio" and still includes {LINK} on its own line for the bio and for reuse.
 
-The headline and subline are burned onto the image, so keep them short and typeset-friendly. The image prompt must describe a photograph with no text, no logos, no identifiable real people, and no fabricated clinical imagery (no fake endoscopy or scans).`;
+The headline and subline are burned onto the image, so keep them short and typeset-friendly. Write the headline in sentence case, never title case. The image prompt must describe a photograph with no text, no logos, no identifiable real people, and no fabricated clinical imagery (no fake endoscopy or scans).`;
 
 export async function generatePostPackage({ brief, angle, notes, variantSeed }) {
   if (MOCK) return mockPackage(angle);

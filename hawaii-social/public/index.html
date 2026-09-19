@@ -127,8 +127,8 @@
                 <option value="link">Link 1200×628 (LinkedIn, Facebook link cards)</option>
                 <option value="story">Story 1080×1920 (Instagram and Facebook stories)</option>
               </select></label>
-            <label>Headline <input id="ov-headline" maxlength="60"></label>
-            <label>Subline <input id="ov-subline" maxlength="90"></label>
+            <label>Headline <input id="ov-headline" maxlength="80"></label>
+            <label>Subline <input id="ov-subline" maxlength="110"></label>
             <label>Footer <input id="ov-footer"></label>
             <div class="row">
               <label>Layout
@@ -143,8 +143,20 @@
               <label>Text size <input id="ov-scale" type="range" min="70" max="140" value="100"></label>
             </div>
             <div class="row">
+              <label>Top shade <input id="ov-topScrim" type="range" min="0" max="100" value="0"></label>
+              <label>Bottom shade <input id="ov-bottomScrim" type="range" min="0" max="100" value="82"></label>
               <label>Focus X <input id="focal-x" type="range" min="0" max="100" value="50"></label>
               <label>Focus Y <input id="focal-y" type="range" min="0" max="100" value="50"></label>
+            </div>
+            <div class="row">
+              <label>Logo size <input id="ov-logoScale" type="range" min="8" max="45" value="22"></label>
+              <label>Logo corner
+                <select id="ov-logoPos">
+                  <option value="tr">Top right</option>
+                  <option value="tl">Top left</option>
+                  <option value="br">Bottom right</option>
+                  <option value="bl">Bottom left</option>
+                </select></label>
               <label class="file">Logo <input id="logo-input" type="file" accept="image/png,image/svg+xml,image/jpeg"></label>
               <button id="logo-clear" class="ghost small">Clear logo</button>
             </div>
