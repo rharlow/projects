@@ -15,6 +15,10 @@ npm start                 # http://localhost:3000
 
 No keys yet? Set `MOCK_AI=1` in `.env` to click through the interface with canned copy.
 
+If the app reports an authentication error, run `npm run check`. It inspects `.env`, reports common mistakes in plain English (quotes around the key, a line break inside it, a duplicate line, a conflicting shell variable), and tests the key against Anthropic. It never prints the key itself.
+
+Values in `.env` take priority over variables already set in your shell.
+
 ## What it does
 
 1. **Angle.** Pick a starter angle or ask Claude for eight fresh ones grounded in the brief. Add notes (a faculty name, a session, a deadline).

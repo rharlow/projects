@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./lib/env.js";
 import express from "express";
 import multer from "multer";
 import fs from "node:fs/promises";
