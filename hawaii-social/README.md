@@ -42,12 +42,17 @@ Claude is instructed to use only facts in the brief and the angle. It will not i
 | --- | --- |
 | `ANTHROPIC_API_KEY` | Required for copy, angles, and rewrites. |
 | `CLAUDE_MODEL` | Defaults to `claude-opus-5`. |
-| `OPENAI_API_KEY` | Optional. Enables image generation with `gpt-image-1`. Without it, uploads still work. |
-| `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY` | Override the image model or quality. |
+| `GEMINI_API_KEY` | Optional. Enables image generation with Gemini, the default provider. Get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Without it, uploads still work. |
+| `OPENAI_API_KEY` | Optional alternative provider. Pair with `IMAGE_PROVIDER=openai`. |
+| `IMAGE_PROVIDER` | `gemini` or `openai`. Leave blank to auto-detect from whichever key is set. |
+| `GEMINI_IMAGE_MODEL` | Comma-separated model ids tried in order. Defaults to `gemini-3.1-flash-image,gemini-2.5-flash-image`. |
+| `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY` | Override the OpenAI model or quality. |
 | `MOCK_AI` | Set to `1` to run without keys. |
 | `PORT` | Defaults to 3000. |
 
-To swap the image provider, replace `lib/imagegen.js`. It exposes `generateImage({ prompt, orientation })` returning a PNG buffer and `imageGenStatus()`.
+Claude does not generate images, so that feature needs a separate account. The app rejects an Anthropic key in either image slot with an explanation rather than forwarding it.
+
+`lib/imagegen.js` holds both providers behind `generateImage({ prompt, orientation })` and `imageGenStatus()`. Gemini model ids are tried in order, so a renamed model falls through to the next rather than hard-failing.
 
 ## Where files go
 
