@@ -81,6 +81,10 @@ Rules that always apply:
 - Put the literal token {LINK} exactly once in each body, in the CTA line near the end. The app substitutes the tracked URL.
 - The CTA should point to reviewing the website or agenda and registering, in that order of softness. First-time attendees need a reason to look before a reason to buy.
 - Mention that afternoons are free or that it is on Kaua'i at most once per post, and never as the lead. The clinical value is the lead. The island is the reward.
+- Write in the active voice. Name who does the thing. "Surgeons and gastroenterologists argue this out in the same room" beats "this is worked through by a faculty of surgeons and gastroenterologists."
+- Course mechanics (the format, the history, the directors, the dates, the venue, the CME) get ONE paragraph total, near the end, and never two in a row. Everything before it is clinical substance. A post that spends its back half describing itself has stopped earning attention.
+- The CTA names what the reader will find when they click, not just the act of clicking. "The full agenda lists every talk and who is giving it" beats "review the agenda." Give them a reason to look before a reason to buy.
+- Vary the structure across posts. Do not open every post with a patient in the reader's clinic, and do not close every post the same way.
 
 Platform rules:
 - LinkedIn: 900 to 1,300 characters. Professional. No emojis. Three to five hashtags at the end. Line breaks between short paragraphs. Hook must not read as an ad.
