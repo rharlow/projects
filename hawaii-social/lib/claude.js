@@ -87,8 +87,8 @@ Rules that always apply:
 - Vary the structure across posts. Do not open every post with a patient in the reader's clinic, and do not close every post the same way.
 
 Platform rules:
-- LinkedIn: 900 to 1,300 characters. Professional. No emojis. Three to five hashtags at the end. Line breaks between short paragraphs. Hook must not read as an ad.
-- Facebook: 400 to 800 characters. Warmer and more conversational, may address the reader as "you", one emoji at most and only if it fits. Two to four hashtags.
+- LinkedIn: 1,000 to 1,600 characters. Depth reads as substance to this audience, so do not pad and do not rush. Professional. No emojis. Three to five hashtags at the end. Line breaks between short paragraphs. Hook must not read as an ad.
+- Facebook: 500 to 900 characters. Warmer and more conversational, may address the reader as "you", one emoji at most and only if it fits. Two to four hashtags.
 - Instagram: 500 to 1,200 characters. Hook in the first 125 characters because that is what shows before "more". Short lines. Eight to fifteen hashtags. Since Instagram captions cannot carry a clickable link, the CTA says "link in bio" and still includes {LINK} on its own line for the bio and for reuse.
 
 The headline and subline are burned onto the image, so keep them short and typeset-friendly. The image prompt must describe a photograph with no text, no logos, no identifiable real people, and no fabricated clinical imagery (no fake endoscopy or scans).`;

@@ -167,9 +167,14 @@ function finalText(platform) {
 function updateLink() { $("#link-preview").textContent = trackedLink(); updateFinal(); }
 function updateFinal() {
   const t = finalText(state.platform); $("#copy-final").textContent = t;
-  const n = t.length; const limits = { linkedin: 3000, facebook: 63206, instagram: 2200 };
-  $("#char-count").textContent = `${n} characters (${state.platform} limit ${limits[state.platform].toLocaleString()})`;
-  $("#char-count").style.color = n > limits[state.platform] ? "var(--danger)" : "";
+  const n = t.length;
+  const limits = { linkedin: 3000, facebook: 63206, instagram: 2200 };
+  const target = { linkedin: [1000, 1600], facebook: [500, 900], instagram: [500, 1200] }[state.platform];
+  const hard = limits[state.platform];
+  const over = n > hard;
+  const outside = n < target[0] || n > target[1];
+  $("#char-count").textContent = `${n} characters. Target ${target[0]} to ${target[1]}${over ? `. Over the ${state.platform} limit of ${hard.toLocaleString()}` : ""}`;
+  $("#char-count").style.color = over ? "var(--danger)" : outside ? "var(--muted)" : "var(--ok)";
 }
 $("#link-target").onchange = updateLink; $("#link-campaign").oninput = updateLink;
 $("#btn-copy-clip").onclick = () => navigator.clipboard.writeText(finalText(state.platform)).then(() => toast("Post copied"));
