@@ -4,11 +4,25 @@
 
 const PROVIDER = process.env.IMAGE_PROVIDER || (process.env.OPENAI_API_KEY ? "openai" : "none");
 
+// Claude does not generate images, so an Anthropic key in this slot is a
+// category error rather than a typo. Say so instead of sending it upstream.
+const WRONG_KEY =
+  "That is an Anthropic key, not an OpenAI key. Claude cannot generate images, so this feature needs a separate OpenAI account. " +
+  "Set OPENAI_API_KEY in .env to a key from platform.openai.com that starts with sk-proj- or sk-, or leave it blank and upload a photo instead.";
+
+function keyProblem() {
+  const k = (process.env.OPENAI_API_KEY || "").trim();
+  if (!k) return "Image generation is not configured. Add OPENAI_API_KEY to .env, or upload a photo instead.";
+  if (k.startsWith("sk-ant-")) return WRONG_KEY;
+  if (k === (process.env.ANTHROPIC_API_KEY || "").trim()) return WRONG_KEY;
+  if (!k.startsWith("sk-")) return "OPENAI_API_KEY does not look like an OpenAI key. OpenAI keys start with sk-proj- or sk-.";
+  return null;
+}
+
 export function imageGenStatus() {
-  if (PROVIDER === "openai") {
-    return { enabled: Boolean(process.env.OPENAI_API_KEY), provider: "openai", model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1" };
-  }
-  return { enabled: false, provider: "none", model: null };
+  if (PROVIDER !== "openai") return { enabled: false, provider: "none", model: null, reason: "Image generation is turned off. Upload a photo instead." };
+  const reason = keyProblem();
+  return { enabled: !reason, provider: "openai", model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1", reason };
 }
 
 const SIZE_BY_ORIENTATION = {
@@ -19,9 +33,7 @@ const SIZE_BY_ORIENTATION = {
 
 export async function generateImage({ prompt, orientation = "landscape" }) {
   const status = imageGenStatus();
-  if (!status.enabled) {
-    throw new Error("Image generation is not configured. Add OPENAI_API_KEY to .env or upload a photo instead.");
-  }
+  if (!status.enabled) throw new Error(status.reason);
   const size = SIZE_BY_ORIENTATION[orientation] || SIZE_BY_ORIENTATION.landscape;
   const res = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",

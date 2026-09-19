@@ -383,8 +383,8 @@ function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&am
   try {
     state.status = await api("/api/status");
     const st = state.status;
-    $("#status").textContent = `${st.claude ? `Claude ${st.claudeModel}` : "No ANTHROPIC_API_KEY"} · ${st.image.enabled ? `images via ${st.image.model}` : "image generation off (uploads only)"}`;
-    if (!st.image.enabled) { $("#btn-generate").disabled = true; $("#image-note").textContent = "Add OPENAI_API_KEY to .env to enable generation."; }
+    $("#status").textContent = `${st.claude ? `Claude ${st.claudeModel}` : "No ANTHROPIC_API_KEY"} · ${st.image.enabled ? `images via ${st.image.model}` : "image generation off, uploads only"}`;
+    if (!st.image.enabled) { $("#btn-generate").disabled = true; $("#image-note").textContent = st.image.reason || "Image generation is off. Upload a photo instead."; }
     state.brief = await api("/api/brief"); renderBrief(); renderAngles(STARTER_ANGLES);
     try { const l = localStorage.getItem("hawaii-logo"); if (l) { state.logo = await loadImage(l); state.logoUrl = l; } } catch {}
     applyBriefDefaults(); showPlatform("linkedin"); await refreshGallery(); await refreshLibrary();

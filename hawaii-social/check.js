@@ -47,6 +47,27 @@ if (shellKey && shellKey !== value) {
   console.log("     The app now forces the .env value, so this is handled. Pull the latest code if you have not.");
 }
 
+// Image generation is optional, but a wrong key here is a common mix-up.
+const oa = (() => {
+  const line = lines.find((l) => /^\s*OPENAI_API_KEY\s*=/.test(l));
+  if (!line) return null;
+  return line.replace(/^\s*OPENAI_API_KEY\s*=/, "").trim().replace(/^["']|["']$/g, "").trim();
+})();
+if (oa) {
+  if (oa.startsWith("sk-ant-") || oa === value) {
+    say(false, "OPENAI_API_KEY holds your ANTHROPIC key. They are different companies.");
+    console.log("     Claude cannot generate images, so that feature needs a separate OpenAI account.");
+    console.log("     Either get a key at https://platform.openai.com/api-keys, or blank the line out");
+    console.log("     and upload photos instead. Everything else works either way.");
+  } else if (!oa.startsWith("sk-")) {
+    say(false, "OPENAI_API_KEY does not look like an OpenAI key. They start with sk-proj- or sk-.");
+  } else {
+    say(true, `OpenAI key present for image generation, ${oa.length} characters.`);
+  }
+} else {
+  say(true, "No OpenAI key set. Image generation is off and uploads still work.");
+}
+
 console.log("\nTesting the key against Anthropic ...");
 const res = await fetch("https://api.anthropic.com/v1/messages", {
   method: "POST",
