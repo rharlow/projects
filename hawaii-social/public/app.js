@@ -41,7 +41,7 @@ const state = {
   copy: { linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy() },
   imagePrompt: "", imageUrl: null, imageSource: null,
   img: null, logo: null, logoUrl: null,
-  overlay: { headline: "", subline: "", footer: "", layout: "gradient", accent: "#0f6f8f", text: "#ffffff", scale: 100, fx: 50, fy: 50, size: "square", topScrim: 0, bottomScrim: 82, logoScale: 22, logoPos: "tr" },
+  overlay: { headline: "", subline: "", footer: "", layout: "gradient", accent: "#0f6f8f", text: "#ffffff", scale: 100, fx: 50, fy: 50, size: "square", topScrim: 0, bottomScrim: 82, shade: "#000000", logoScale: 22, logoPos: "tr" },
   title: "", postStatus: "draft", date: "", platforms: ["linkedin", "facebook", "instagram"],
   variant: 0,
 };
@@ -216,7 +216,7 @@ $("#logo-input").onchange = async (e) => {
 $("#logo-clear").onclick = () => { state.logo = null; state.logoUrl = null; try { localStorage.removeItem("hawaii-logo"); } catch {} render(); };
 
 /* ---------- Composer ---------- */
-const OV_TEXT = ["headline", "subline", "footer", "layout", "accent", "text", "logoPos"];
+const OV_TEXT = ["headline", "subline", "footer", "layout", "accent", "text", "shade", "logoPos"];
 const OV_NUM = ["scale", "topScrim", "bottomScrim", "logoScale"];
 const OV = [...OV_TEXT, ...OV_NUM];
 function syncOverlayInputs() {
@@ -268,16 +268,17 @@ function renderTo(canvas, sizeKey) {
 
   // Shading. Top and bottom are independent, so a logo in a bright sky can be
   // darkened without moving the text or changing the layout.
+  const shade = o.shade || "#000000";
   const bottomAlpha = (o.layout === "band" ? 0 : o.bottomScrim / 100) * (top ? 0.35 : 1);
   if (bottomAlpha > 0.01) {
     const g = ctx.createLinearGradient(0, h * 0.35, 0, h);
-    g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, `rgba(0,0,0,${bottomAlpha})`);
+    g.addColorStop(0, hexToRgba(shade, 0)); g.addColorStop(1, hexToRgba(shade, bottomAlpha));
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   }
   const topAlpha = Math.max(o.topScrim / 100, top ? 0.78 : 0);
   if (topAlpha > 0.01) {
     const g = ctx.createLinearGradient(0, 0, 0, h * (top ? 0.6 : 0.34));
-    g.addColorStop(0, `rgba(0,0,0,${topAlpha})`); g.addColorStop(1, "rgba(0,0,0,0)");
+    g.addColorStop(0, hexToRgba(shade, topAlpha)); g.addColorStop(1, hexToRgba(shade, 0));
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   }
   if (o.layout === "band") {
@@ -303,9 +304,12 @@ function renderTo(canvas, sizeKey) {
     // Sized by width, because these logos are wide lockups whose height says
     // little about how large the wordmark actually reads.
     const lw = w * (o.logoScale / 100); const lh = state.logo.height * (lw / state.logo.width);
-    const right = o.logoPos.endsWith("r"); const atTop = o.logoPos.startsWith("t");
-    const lx = right ? w - pad - lw : pad;
-    const ly = atTop ? pad : h - pad - lh - (o.footer && !right ? footH : 0);
+    const pos = o.logoPos || "tr";
+    const atTop = pos.startsWith("t"); const side = pos.slice(1);
+    const lx = side === "c" ? (w - lw) / 2 : side === "r" ? w - pad - lw : pad;
+    // A bottom logo that is not hard right would sit on the footer pill, so lift it clear.
+    const clearsFooter = o.footer && side !== "r";
+    const ly = atTop ? pad : h - pad - lh - (clearsFooter ? footH : 0);
     ctx.drawImage(state.logo, lx, ly, lw, lh);
   }
 }

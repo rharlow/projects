@@ -145,16 +145,19 @@
             <div class="row">
               <label>Top shade <input id="ov-topScrim" type="range" min="0" max="100" value="0"></label>
               <label>Bottom shade <input id="ov-bottomScrim" type="range" min="0" max="100" value="82"></label>
+              <label>Shade color <input id="ov-shade" type="color" value="#000000"></label>
               <label>Focus X <input id="focal-x" type="range" min="0" max="100" value="50"></label>
               <label>Focus Y <input id="focal-y" type="range" min="0" max="100" value="50"></label>
             </div>
             <div class="row">
               <label>Logo size <input id="ov-logoScale" type="range" min="8" max="45" value="22"></label>
-              <label>Logo corner
+              <label>Logo position
                 <select id="ov-logoPos">
                   <option value="tr">Top right</option>
+                  <option value="tc">Top center</option>
                   <option value="tl">Top left</option>
                   <option value="br">Bottom right</option>
+                  <option value="bc">Bottom center</option>
                   <option value="bl">Bottom left</option>
                 </select></label>
               <label class="file">Logo <input id="logo-input" type="file" accept="image/png,image/svg+xml,image/jpeg"></label>
