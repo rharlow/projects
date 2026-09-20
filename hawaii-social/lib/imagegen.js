@@ -8,7 +8,9 @@
 // a category error rather than a typo and is reported as such.
 // Set IMAGE_PROVIDER to force one, or leave it unset to auto-detect from keys.
 
-const GEMINI_MODELS = (process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image,gemini-2.5-flash-image")
+// gemini-2.5-flash-image is retired on 2 October 2026, so it sits last as a
+// legacy fallback only. Override the whole list with GEMINI_IMAGE_MODEL.
+const GEMINI_MODELS = (process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image,gemini-3.1-flash-image-preview,gemini-2.5-flash-image")
   .split(",").map((m) => m.trim()).filter(Boolean);
 
 const ASPECT = { landscape: "16:9", square: "1:1", portrait: "4:5" };
@@ -62,7 +64,7 @@ async function readError(res) {
 
 async function generateGemini(prompt, orientation) {
   const apiKey = key("GEMINI_API_KEY");
-  let lastErr = "";
+  let lastErr = ""; let planBlocked = false;
   // Model ids move; fall through the list rather than hard-failing on a rename.
   for (const model of GEMINI_MODELS) {
     const base = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta";
@@ -78,8 +80,18 @@ async function generateGemini(prompt, orientation) {
       }),
     });
     if (!res.ok) {
-      lastErr = `${res.status}: ${await readError(res)}`;
-      if (res.status === 404 || res.status === 400) continue; // try the next model id
+      const detail = await readError(res);
+      lastErr = `${res.status}: ${detail}`;
+      // "limit: 0" is a plan restriction, not usage. Image models are not on the
+      // free tier at all, so no amount of waiting helps and other models will
+      // refuse the same way.
+      if (res.status === 429 && /limit:\s*0\b/.test(detail)) { planBlocked = true; continue; }
+      if (res.status === 429) {
+        const wait = detail.match(/retry in ([\d.]+)s/i);
+        throw new Error(`Google is rate limiting this key. ${wait ? `Wait about ${Math.ceil(Number(wait[1]))} seconds and try again.` : "Wait a minute and try again."}`);
+      }
+      if (res.status === 401 || res.status === 403) throw new Error(`Google refused the key (${res.status}). Check GEMINI_API_KEY, or create a new one at https://aistudio.google.com/apikey`);
+      if (res.status === 404 || res.status === 400) continue; // renamed or unavailable model, try the next
       throw new Error(`Google rejected the request (${lastErr})`);
     }
     const json = await res.json();
@@ -92,6 +104,13 @@ async function generateGemini(prompt, orientation) {
       continue;
     }
     return { buffer: Buffer.from(inline.data, "base64"), mime: inline.mimeType || inline.mime_type || "image/png" };
+  }
+  if (planBlocked) {
+    throw new Error(
+      "Google's free tier does not include image generation, so this key has a quota of zero for every image model. " +
+      "Waiting will not help. Enable billing on the same Google account at https://aistudio.google.com/apikey (open the key's project, then Set up billing). " +
+      "Images run about four cents each. Or leave image generation off and upload photos instead, which works better for this audience anyway."
+    );
   }
   throw new Error(`Google could not generate an image. Last response: ${lastErr}`);
 }

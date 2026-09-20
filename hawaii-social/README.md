@@ -52,6 +52,8 @@ Claude is instructed to use only facts in the brief and the angle. It will not i
 
 Claude does not generate images, so that feature needs a separate account. The app rejects an Anthropic key in either image slot with an explanation rather than forwarding it.
 
+**Gemini image generation requires billing.** Google's free tier grants zero quota for every image model, so a free key returns a 429 reading `limit: 0` no matter how long you wait. Enable billing on the key's Google project. Images cost roughly four cents each. Uploading photos needs no image key at all.
+
 `lib/imagegen.js` holds both providers behind `generateImage({ prompt, orientation })` and `imageGenStatus()`. Gemini model ids are tried in order, so a renamed model falls through to the next rather than hard-failing.
 
 ## Where files go
