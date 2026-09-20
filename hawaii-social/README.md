@@ -44,13 +44,15 @@ Claude is instructed to use only facts in the brief and the angle. It will not i
 | `CLAUDE_MODEL` | Defaults to `claude-opus-5`. |
 | `GEMINI_API_KEY` | Optional. Enables image generation with Gemini, the default provider. Get one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey). Without it, uploads still work. |
 | `OPENAI_API_KEY` | Optional alternative provider. Pair with `IMAGE_PROVIDER=openai`. |
-| `IMAGE_PROVIDER` | `gemini` or `openai`. Leave blank to auto-detect from whichever key is set. |
+| `IMAGE_PROVIDER` | `gemini`, `openai`, or `none`. Use `none` to work only from uploaded photos regardless of which keys are present. Leave blank to auto-detect. |
 | `GEMINI_IMAGE_MODEL` | Comma-separated model ids tried in order. Defaults to `gemini-3.1-flash-image,gemini-2.5-flash-image`. |
 | `OPENAI_IMAGE_MODEL`, `OPENAI_IMAGE_QUALITY` | Override the OpenAI model or quality. |
 | `MOCK_AI` | Set to `1` to run without keys. |
 | `PORT` | Defaults to 3000. |
 
 Claude does not generate images, so that feature needs a separate account. The app rejects an Anthropic key in either image slot with an explanation rather than forwarding it.
+
+**Image generation turns itself off if it cannot run.** A key that looks valid says nothing about whether the account can bill for images, so the first plan-blocked request latches generation off and records it in `data/imagegen-off.json`. The header and the controls update immediately. Setting `IMAGE_PROVIDER` explicitly clears the latch, which is how you re-enable it after turning on billing.
 
 **Gemini image generation requires billing.** Google's free tier grants zero quota for every image model, so a free key returns a 429 reading `limit: 0` no matter how long you wait. Enable billing on the key's Google project. Images cost roughly four cents each. Uploading photos needs no image key at all.
 

@@ -240,7 +240,7 @@ $("#btn-generate").onclick = async () => {
   const prompt = $("#image-prompt").value.trim(); if (!prompt) return toast("Write or generate an image prompt first.", true);
   busy("#image-busy", true); $("#btn-generate").disabled = true;
   try { const { url } = await api("/api/images/generate", { method: "POST", body: JSON.stringify({ prompt, orientation: $("#image-orientation").value }) }); await refreshGallery(); await useImage(url, "generated"); toast("Image generated"); }
-  catch (e) { toast(e.message, true); }
+  catch (e) { toast(e.message, true); await refreshStatus().catch(() => {}); }
   finally { busy("#image-busy", false); $("#btn-generate").disabled = false; }
 };
 $("#logo-input").onchange = async (e) => {
@@ -414,14 +414,20 @@ async function refreshLibrary() {
 }
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
+async function refreshStatus() {
+  const st = await api("/api/status");
+  state.status = st;
+  const img = st.image.enabled ? `images via ${st.image.model}` : "uploaded photos";
+  $("#status").textContent = `${st.claude ? `Claude ${st.claudeModel}` : "No ANTHROPIC_API_KEY"} \u00b7 ${img}`;
+  $("#gen-controls").classList.toggle("hidden", !st.image.enabled);
+  $("#image-note").textContent = st.image.enabled ? "" : (st.image.reason && st.image.latched ? st.image.reason : "Working from uploaded photos. Use the direction above to pick or shoot one.");
+  return st;
+}
+
 /* ---------- Init ---------- */
 (async function init() {
   try {
-    state.status = await api("/api/status");
-    const st = state.status;
-    $("#status").textContent = `${st.claude ? `Claude ${st.claudeModel}` : "No ANTHROPIC_API_KEY"} · ${st.image.enabled ? `images via ${st.image.model}` : "image generation off, uploads only"}`;
-    $("#gen-controls").classList.toggle("hidden", !st.image.enabled);
-    $("#image-note").textContent = st.image.enabled ? "" : "Working from uploaded photos. Use the direction above to pick or shoot one.";
+    await refreshStatus();
     state.brief = await api("/api/brief"); renderBrief(); renderAngles(STARTER_ANGLES);
     try { const l = localStorage.getItem("hawaii-logo"); if (l) { state.logo = await loadImage(l); state.logoUrl = l; } } catch {}
     applyBriefDefaults(); showPlatform("linkedin"); await refreshGallery(); await refreshLibrary();

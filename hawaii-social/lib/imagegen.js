@@ -10,6 +10,10 @@
 
 // gemini-2.5-flash-image is retired on 2 October 2026, so it sits last as a
 // legacy fallback only. Override the whole list with GEMINI_IMAGE_MODEL.
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 const GEMINI_MODELS = (process.env.GEMINI_IMAGE_MODEL || "gemini-3.1-flash-image,gemini-3.1-flash-image-preview,gemini-2.5-flash-image")
   .split(",").map((m) => m.trim()).filter(Boolean);
 
@@ -17,6 +21,21 @@ const ASPECT = { landscape: "16:9", square: "1:1", portrait: "4:5" };
 const OPENAI_SIZE = { landscape: "1536x1024", square: "1024x1024", portrait: "1024x1536" };
 
 const key = (name) => (process.env[name] || "").trim();
+
+// A valid-looking key says nothing about whether the account can actually bill
+// for images, and the only way to find out is to try. When a request comes back
+// plan-blocked we latch generation off and remember it across restarts, so the
+// UI stops advertising a provider that cannot run. Setting IMAGE_PROVIDER
+// explicitly clears the latch, which is the way back in after enabling billing.
+const LATCH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data", "imagegen-off.json");
+
+function readLatch() {
+  try { return JSON.parse(fs.readFileSync(LATCH, "utf8")); } catch { return null; }
+}
+function writeLatch(reason) {
+  try { fs.mkdirSync(path.dirname(LATCH), { recursive: true }); fs.writeFileSync(LATCH, JSON.stringify({ reason, at: new Date().toISOString() }, null, 2)); } catch {}
+}
+function clearLatch() { try { fs.rmSync(LATCH, { force: true }); } catch {} }
 
 function chooseProvider() {
   const forced = (process.env.IMAGE_PROVIDER || "").trim().toLowerCase();
@@ -50,8 +69,13 @@ function keyProblem(provider) {
 }
 
 export function imageGenStatus() {
+  // Any explicit IMAGE_PROVIDER is a deliberate decision, so it clears the latch
+  // whichever way it points. That is the single escape hatch back to generating.
+  if ((process.env.IMAGE_PROVIDER || "").trim()) clearLatch();
   const provider = chooseProvider();
-  if (provider === "none") return { enabled: false, provider, model: null, reason: "No image key set. Upload a photo instead, or add GEMINI_API_KEY to .env." };
+  if (provider === "none") return { enabled: false, provider: "none", model: null, reason: "Working from uploaded photos." };
+  const latched = readLatch();
+  if (latched) return { enabled: false, provider: "none", model: null, reason: latched.reason, latched: true };
   const reason = keyProblem(provider);
   const model = provider === "gemini" ? GEMINI_MODELS[0] : process.env.OPENAI_IMAGE_MODEL || "gpt-image-1";
   return { enabled: !reason, provider, model, reason };
@@ -106,6 +130,7 @@ async function generateGemini(prompt, orientation) {
     return { buffer: Buffer.from(inline.data, "base64"), mime: inline.mimeType || inline.mime_type || "image/png" };
   }
   if (planBlocked) {
+    writeLatch("Image generation is off because this Google account has no image quota. Uploads are unaffected.");
     throw new Error(
       "Google's free tier does not include image generation, so this key has a quota of zero for every image model. " +
       "Waiting will not help. Enable billing on the same Google account at https://aistudio.google.com/apikey (open the key's project, then Set up billing). " +
