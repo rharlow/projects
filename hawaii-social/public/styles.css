@@ -73,3 +73,11 @@ details summary h2 { display: inline; }
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 10; max-width: 90vw; }
 .toast.error { background: var(--danger); color: #fff; }
 .copy-grid textarea, .brief-form textarea, textarea#angle { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+
+.dropzone { border: 2px dashed var(--line); border-radius: 10px; padding: 16px; text-align: center; transition: border-color .15s, background .15s; }
+.dropzone.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.dropzone p { margin: 8px 0 0; }
+.gallery figure { position: relative; margin: 0; }
+.gallery figure .kill { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; line-height: 1; padding: 0; border-radius: 50%; border: 0; background: rgba(0,0,0,.62); color: #fff; font-size: 13px; cursor: pointer; opacity: 0; transition: opacity .12s; }
+.gallery figure:hover .kill, .gallery figure:focus-within .kill { opacity: 1; }
+.gallery figure .kill:hover { background: var(--danger); }

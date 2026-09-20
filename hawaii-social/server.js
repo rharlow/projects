@@ -81,12 +81,26 @@ app.post("/api/rewrite", wrap(async (req, res) => {
   res.json({ text: await rewriteCopy({ brief, platform, text, instruction }) });
 }));
 
-app.post("/api/images/upload", upload.single("image"), wrap(async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Upload a PNG, JPEG, or WebP." });
-  const ext = req.file.mimetype === "image/png" ? "png" : req.file.mimetype === "image/webp" ? "webp" : "jpg";
-  const name = `${id()}.${ext}`;
-  await fs.writeFile(path.join(IMAGES, name), req.file.buffer);
-  res.json({ url: `/images/${name}`, source: "upload", filename: req.file.originalname });
+const EXT = { "image/png": "png", "image/webp": "webp", "image/jpeg": "jpg" };
+
+app.post("/api/images/upload", upload.array("image", 40), wrap(async (req, res) => {
+  const files = req.files || [];
+  if (!files.length) return res.status(400).json({ error: "Upload a PNG, JPEG, or WebP." });
+  const saved = [];
+  for (const f of files) {
+    const name = `${id()}.${EXT[f.mimetype] || "jpg"}`;
+    await fs.writeFile(path.join(IMAGES, name), f.buffer);
+    saved.push({ url: `/images/${name}`, source: "upload", filename: f.originalname });
+  }
+  // `url` keeps single-file callers working; `saved` carries the whole batch.
+  res.json({ ...saved[0], saved, count: saved.length });
+}));
+
+app.delete("/api/images/:name", wrap(async (req, res) => {
+  const name = path.basename(req.params.name);
+  if (!/^[\w.-]+\.(png|jpe?g|webp)$/i.test(name)) return res.status(400).json({ error: "Not an image file." });
+  await fs.rm(path.join(IMAGES, name), { force: true });
+  res.json({ ok: true });
 }));
 
 app.post("/api/images/generate", wrap(async (req, res) => {

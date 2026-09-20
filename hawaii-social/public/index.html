@@ -97,13 +97,13 @@
       <div class="step-head"><span class="num">3</span><h2>Image</h2></div>
       <div class="image-grid">
         <div class="image-source">
-          <div class="row">
-            <label class="file">Upload photo <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp"></label>
-            <span class="hint">PNG, JPEG, or WebP. Landscape works for every size.</span>
+          <div id="dropzone" class="dropzone">
+            <label class="file">Choose photos <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
+            <p class="hint">Or drag photos here. PNG, JPEG, or WebP, several at once. Landscape shots crop cleanly to every size.</p>
           </div>
-          <label>Image prompt (Claude drafts this; edit freely)
-            <textarea id="image-prompt" rows="4" placeholder="Describe the photograph you want."></textarea></label>
-          <div class="row">
+          <label>Photo direction from Claude
+            <textarea id="image-prompt" rows="3" placeholder="What kind of photo suits this post."></textarea></label>
+          <div id="gen-controls" class="row hidden">
             <select id="image-orientation">
               <option value="landscape">Landscape</option>
               <option value="square">Square</option>
@@ -111,9 +111,9 @@
             </select>
             <button id="btn-generate" class="primary">Generate image</button>
             <span id="image-busy" class="busy hidden">Generating…</span>
-            <span id="image-note" class="hint"></span>
           </div>
-          <h3>Recent images</h3>
+          <span id="image-note" class="hint"></span>
+          <h3>Photo library <span id="gallery-count" class="hint"></span></h3>
           <div id="gallery" class="gallery"></div>
         </div>
 

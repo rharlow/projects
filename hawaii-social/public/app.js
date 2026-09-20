@@ -189,16 +189,52 @@ async function useImage(url, source) {
   catch { toast("Could not load that image.", true); }
 }
 async function refreshGallery() {
-  const { images } = await api("/api/images"); const g = $("#gallery"); g.innerHTML = "";
-  for (const im of images.slice(0, 24)) { const i = document.createElement("img"); i.src = im.url; i.dataset.url = im.url; i.classList.toggle("active", im.url === state.imageUrl); i.onclick = () => useImage(im.url, "library"); g.appendChild(i); }
+  const { images } = await api("/api/images");
+  const g = $("#gallery"); g.innerHTML = "";
+  $("#gallery-count").textContent = images.length ? `${images.length} photo${images.length === 1 ? "" : "s"}` : "";
+  if (!images.length) { g.innerHTML = '<p class="hint">No photos yet. Add some above and they stay here for every future post.</p>'; return; }
+  for (const im of images) {
+    const fig = document.createElement("figure");
+    const i = document.createElement("img");
+    i.src = im.url; i.dataset.url = im.url; i.loading = "lazy";
+    i.classList.toggle("active", im.url === state.imageUrl);
+    i.onclick = () => useImage(im.url, "library");
+    const kill = document.createElement("button");
+    kill.className = "kill"; kill.textContent = "\u00d7"; kill.title = "Remove from library";
+    kill.onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm("Remove this photo from the library? Saved posts that used it will lose their image.")) return;
+      try {
+        await api(`/api/images/${im.url.split("/").pop()}`, { method: "DELETE" });
+        if (state.imageUrl === im.url) { state.img = null; state.imageUrl = null; render(); }
+        refreshGallery();
+      } catch (err) { toast(err.message, true); }
+    };
+    fig.append(i, kill); g.appendChild(fig);
+  }
 }
-$("#file-input").onchange = async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  const fd = new FormData(); fd.append("image", f);
-  try { const { url } = await api("/api/images/upload", { method: "POST", body: fd }); await refreshGallery(); await useImage(url, "upload"); toast("Photo uploaded"); }
-  catch (err) { toast(err.message, true); }
-  e.target.value = "";
-};
+
+async function uploadFiles(fileList) {
+  const files = Array.from(fileList || []).filter((f) => /^image\/(png|jpeg|webp)$/.test(f.type));
+  const skipped = (fileList?.length || 0) - files.length;
+  if (!files.length) return toast("Those files are not PNG, JPEG, or WebP.", true);
+  const fd = new FormData();
+  for (const f of files) fd.append("image", f);
+  try {
+    const r = await api("/api/images/upload", { method: "POST", body: fd });
+    await refreshGallery();
+    await useImage(r.url, "upload");
+    toast(`Added ${r.count} photo${r.count === 1 ? "" : "s"}${skipped ? `, skipped ${skipped}` : ""}`);
+  } catch (err) { toast(err.message, true); }
+}
+$("#file-input").onchange = async (e) => { await uploadFiles(e.target.files); e.target.value = ""; };
+
+const dz = $("#dropzone");
+for (const ev of ["dragenter", "dragover"]) dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("over"); });
+for (const ev of ["dragleave", "dragend"]) dz.addEventListener(ev, () => dz.classList.remove("over"));
+dz.addEventListener("drop", async (e) => { e.preventDefault(); dz.classList.remove("over"); await uploadFiles(e.dataTransfer?.files); });
+// Stop a stray drop elsewhere on the page from navigating away from the app.
+for (const ev of ["dragover", "drop"]) document.addEventListener(ev, (e) => { if (!dz.contains(e.target)) e.preventDefault(); });
 $("#image-prompt").oninput = (e) => (state.imagePrompt = e.target.value);
 $("#btn-generate").onclick = async () => {
   const prompt = $("#image-prompt").value.trim(); if (!prompt) return toast("Write or generate an image prompt first.", true);
@@ -384,7 +420,8 @@ function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&am
     state.status = await api("/api/status");
     const st = state.status;
     $("#status").textContent = `${st.claude ? `Claude ${st.claudeModel}` : "No ANTHROPIC_API_KEY"} · ${st.image.enabled ? `images via ${st.image.model}` : "image generation off, uploads only"}`;
-    if (!st.image.enabled) { $("#btn-generate").disabled = true; $("#image-note").textContent = st.image.reason || "Image generation is off. Upload a photo instead."; }
+    $("#gen-controls").classList.toggle("hidden", !st.image.enabled);
+    $("#image-note").textContent = st.image.enabled ? "" : "Working from uploaded photos. Use the direction above to pick or shoot one.";
     state.brief = await api("/api/brief"); renderBrief(); renderAngles(STARTER_ANGLES);
     try { const l = localStorage.getItem("hawaii-logo"); if (l) { state.logo = await loadImage(l); state.logoUrl = l; } } catch {}
     applyBriefDefaults(); showPlatform("linkedin"); await refreshGallery(); await refreshLibrary();
