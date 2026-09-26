@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hawaii Course Social Builder</title>
+<title>Hawaii Course Posts</title>
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -12,136 +12,162 @@
 <body>
 <header class="topbar">
   <div class="brand">
-    <strong>Hawaii Course</strong> social builder
-    <span id="status" class="status"></span>
+    <img src="favicon-32.png" alt="" width="28" height="28">
+    <span><strong>Hawaii Course</strong> social posts</span>
   </div>
   <div class="topbar-actions">
-    <button id="btn-new" class="ghost">New post</button>
-    <button id="btn-save" class="primary">Save post</button>
+    <span id="save-state" class="save-state" aria-live="polite"></span>
+    <button id="btn-facts" type="button" class="ghost">Course facts</button>
+    <button id="btn-new" type="button" class="ghost">Start a new post</button>
   </div>
 </header>
 
+<div id="banner" class="banner hidden" role="status"></div>
+
 <div class="layout">
   <aside class="sidebar">
-    <section class="panel">
-      <h2>Library</h2>
-      <ul id="library" class="library"></ul>
-    </section>
-    <section class="panel">
-      <details>
-        <summary><h2>Course brief</h2></summary>
-        <p class="hint">Facts Claude is allowed to use. Edit and save when something changes.</p>
-        <form id="brief-form" class="brief-form"></form>
-        <div class="row">
-          <button id="brief-save" class="primary" type="button">Save brief</button>
-          <button id="brief-reset" class="ghost" type="button">Reset to default</button>
-        </div>
-      </details>
-    </section>
+    <h2>Saved posts</h2>
+    <p class="hint">Everything saves automatically.</p>
+    <ul id="library" class="library"></ul>
   </aside>
 
   <main class="main">
+    <!-- 1. Topic -->
     <section class="panel step">
-      <div class="step-head"><span class="num">1</span><h2>Angle</h2>
-        <button id="btn-angles" class="ghost small">Suggest angles with Claude</button></div>
+      <header class="step-head">
+        <span class="num">1</span>
+        <h2>Pick a topic</h2>
+      </header>
+      <p class="hint">Choose one below, or describe your own.</p>
       <div id="angles" class="chips"></div>
-      <label>What is this post about?
-        <textarea id="angle" rows="3" placeholder="Example: Why the surgeon versus gastroenterologist debate at this course changes how you work up dysphagia."></textarea></label>
-      <label>Notes for the writer (optional)
-        <input id="notes" placeholder="Example: mention Pandolfino's GERD mimics talk was the top-rated session last year."></label>
-      <div class="row">
-        <button id="btn-copy" class="primary">Generate copy</button>
-        <button id="btn-variant" class="ghost">Another take</button>
-        <span id="copy-busy" class="busy hidden">Writing…</span>
+      <button id="btn-angles" type="button" class="link-btn">Suggest more topics</button>
+
+      <label for="angle">What is this post about?</label>
+      <textarea id="angle" rows="3" placeholder="For example: why the surgeon versus gastroenterologist debate at this course is worth the trip."></textarea>
+
+      <label for="notes">Anything specific to include? <span class="optional">Optional</span></label>
+      <input id="notes" placeholder="For example: mention that the hotel block is filling up.">
+
+      <div class="actions">
+        <button id="btn-copy" type="button" class="primary big">Write the posts</button>
+        <button id="btn-variant" type="button" class="ghost hidden">Write a different version</button>
+        <span id="copy-busy" class="busy hidden">Writing all three posts. This usually takes about 20 seconds.</span>
       </div>
     </section>
 
+    <!-- 2. Wording -->
     <section class="panel step">
-      <div class="step-head"><span class="num">2</span><h2>Copy</h2>
-        <div class="tabs" id="platform-tabs">
-          <button data-p="linkedin" class="tab active">LinkedIn</button>
-          <button data-p="facebook" class="tab">Facebook</button>
-          <button data-p="instagram" class="tab">Instagram</button>
-        </div></div>
-      <div class="copy-grid">
-        <div>
-          <textarea id="copy-body" rows="14" placeholder="Post text appears here. Keep {LINK} where the tracked link should go."></textarea>
-          <div class="row wrap">
-            <span id="char-count" class="hint"></span>
-            <button class="ghost small rewrite" data-i="Make it shorter and tighter without losing the clinical hook.">Shorter</button>
-            <button class="ghost small rewrite" data-i="Make the hook sharper and more specific. Keep the rest.">Sharper hook</button>
-            <button class="ghost small rewrite" data-i="Make it more clinical and specific, less promotional.">More clinical</button>
-            <button class="ghost small rewrite" data-i="Make it warmer and more personal, as if a colleague wrote it.">Warmer</button>
+      <header class="step-head">
+        <span class="num">2</span>
+        <h2>Check the wording</h2>
+      </header>
+
+      <div id="copy-empty" class="empty-state">
+        Your LinkedIn, Facebook, and Instagram posts will appear here after you press <strong>Write the posts</strong>.
+      </div>
+
+      <div id="copy-area" class="hidden">
+        <div class="tabs" id="platform-tabs" role="tablist">
+          <button type="button" role="tab" data-p="linkedin" class="tab active">LinkedIn<span class="tick" aria-hidden="true"></span></button>
+          <button type="button" role="tab" data-p="facebook" class="tab">Facebook<span class="tick" aria-hidden="true"></span></button>
+          <button type="button" role="tab" data-p="instagram" class="tab">Instagram<span class="tick" aria-hidden="true"></span></button>
+        </div>
+
+        <p class="hint">This is exactly what will be posted. Edit anything you like.</p>
+        <textarea id="copy-text" rows="16" aria-label="Post text"></textarea>
+
+        <div class="under-text">
+          <span id="length-note" class="length-note"></span>
+          <span class="rewrite-group">
+            <span class="hint">Adjust:</span>
+            <button type="button" class="chip-btn rewrite" data-i="Make it shorter and tighter without losing the clinical point.">Shorter</button>
+            <button type="button" class="chip-btn rewrite" data-i="Make the first line stronger and more specific. Keep the rest.">Stronger opening</button>
+            <button type="button" class="chip-btn rewrite" data-i="Make it more clinical and specific, less promotional.">More clinical</button>
+            <button type="button" class="chip-btn rewrite" data-i="Make it warmer and more personal, as if a colleague wrote it.">Warmer</button>
             <span id="rewrite-busy" class="busy hidden">Rewriting…</span>
-          </div>
-          <label>Hashtags <input id="copy-tags" placeholder="#Foregut #GERD"></label>
-          <label>Alt text <input id="copy-alt" placeholder="Image description for accessibility"></label>
+          </span>
         </div>
-        <div class="link-box">
-          <h3>Tracked link</h3>
-          <label>Destination
+
+        <div class="copy-actions">
+          <label class="inline" for="link-target">Link goes to
             <select id="link-target">
-              <option value="website">Website home</option>
+              <option value="website">Course website</option>
               <option value="registration">Registration page</option>
-            </select></label>
-          <label>Campaign <input id="link-campaign" value="hawaii2027"></label>
-          <code id="link-preview" class="link-preview"></code>
-          <h3>Ready to paste</h3>
-          <pre id="copy-final" class="final"></pre>
-          <div class="row">
-            <button id="btn-copy-clip" class="primary small">Copy post to clipboard</button>
-            <button id="btn-copy-link" class="ghost small">Copy link only</button>
+            </select>
+          </label>
+          <button id="btn-copy-post" type="button" class="primary big">Copy LinkedIn post</button>
+          <button id="btn-copy-link" type="button" class="ghost hidden">Copy link for your Instagram bio</button>
+        </div>
+
+        <div class="alt-box">
+          <label for="copy-alt">Picture description</label>
+          <p class="hint">Paste this into the alt text box when you post. It describes the picture for people who use screen readers.</p>
+          <div class="alt-row">
+            <textarea id="copy-alt" rows="2"></textarea>
+            <button id="btn-copy-alt" type="button" class="ghost">Copy</button>
           </div>
         </div>
       </div>
     </section>
 
+    <!-- 3. Picture -->
     <section class="panel step">
-      <div class="step-head"><span class="num">3</span><h2>Image</h2></div>
-      <div class="image-grid">
-        <div class="image-source">
+      <header class="step-head">
+        <span class="num">3</span>
+        <h2>Make the picture</h2>
+      </header>
+
+      <div class="picture-grid">
+        <div class="photos">
+          <h3>Your photos</h3>
           <div id="dropzone" class="dropzone">
-            <label class="file">Choose photos <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
-            <p class="hint">Or drag photos here. PNG, JPEG, or WebP, several at once. Landscape shots crop cleanly to every size.</p>
+            <label class="file-btn">Add photos <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
+            <p class="hint">or drag them here. You can add several at once, and they stay here for future posts.</p>
           </div>
-          <h3>Photo library <span id="gallery-count" class="hint"></span></h3>
+          <p class="hint">Click a photo to use it.</p>
           <div id="gallery" class="gallery"></div>
         </div>
 
         <div class="composer">
-          <h3>Composer</h3>
-          <div class="controls">
-            <label>Size
-              <select id="size">
-                <option value="square">Square 1080×1080 (Instagram, LinkedIn, Facebook)</option>
-                <option value="portrait">Portrait 1080×1350 (Instagram feed)</option>
-                <option value="link">Link 1200×628 (LinkedIn, Facebook link cards)</option>
-                <option value="story">Story 1080×1920 (Instagram and Facebook stories)</option>
-              </select></label>
-            <label>Headline <input id="ov-headline" maxlength="80"></label>
-            <label>Subline <input id="ov-subline" maxlength="110"></label>
-            <label>Footer <input id="ov-footer"></label>
-            <div class="row">
-              <label>Layout
+          <div class="sizes" role="radiogroup" aria-label="Picture shape">
+            <button type="button" class="size active" data-size="square" role="radio" aria-checked="true">Square<small>All three platforms</small></button>
+            <button type="button" class="size" data-size="portrait" role="radio" aria-checked="false">Tall<small>Instagram feed</small></button>
+            <button type="button" class="size" data-size="link" role="radio" aria-checked="false">Wide<small>Link preview</small></button>
+            <button type="button" class="size" data-size="story" role="radio" aria-checked="false">Story<small>Stories</small></button>
+          </div>
+
+          <div class="canvas-wrap"><canvas id="canvas" width="1080" height="1080" aria-label="Picture preview"></canvas></div>
+          <p id="drag-hint" class="hint center hidden">Drag the photo to move it within the frame.</p>
+
+          <label for="ov-headline">Headline</label>
+          <input id="ov-headline" maxlength="80">
+          <label for="ov-subline">Second line</label>
+          <input id="ov-subline" maxlength="110">
+
+          <div class="actions">
+            <button id="btn-download" type="button" class="primary big">Download picture</button>
+            <button id="btn-download-all" type="button" class="ghost">Download all four shapes</button>
+          </div>
+
+          <details class="adjust">
+            <summary>Adjust the look</summary>
+            <div class="adjust-grid">
+              <label>Text style
                 <select id="ov-layout">
-                  <option value="gradient">Bottom gradient</option>
-                  <option value="band">Solid band</option>
-                  <option value="top">Top gradient</option>
-                  <option value="none">Text only</option>
+                  <option value="gradient">Shaded, text at bottom</option>
+                  <option value="band">Color band, text at bottom</option>
+                  <option value="top">Shaded, text at top</option>
+                  <option value="none">No shading</option>
                 </select></label>
-              <label>Accent <input id="ov-accent" type="color" value="#0f6f8f"></label>
-              <label>Text <input id="ov-text" type="color" value="#ffffff"></label>
               <label>Text size <input id="ov-scale" type="range" min="70" max="140" value="100"></label>
-            </div>
-            <div class="row">
-              <label>Top shade <input id="ov-topScrim" type="range" min="0" max="100" value="0"></label>
-              <label>Bottom shade <input id="ov-bottomScrim" type="range" min="0" max="100" value="82"></label>
+              <label>Shade at bottom <input id="ov-bottomScrim" type="range" min="0" max="100" value="82"></label>
+              <label>Shade at top <input id="ov-topScrim" type="range" min="0" max="100" value="45"></label>
               <label>Shade color <input id="ov-shade" type="color" value="#000000"></label>
-              <label>Focus X <input id="focal-x" type="range" min="0" max="100" value="50"></label>
-              <label>Focus Y <input id="focal-y" type="range" min="0" max="100" value="50"></label>
-            </div>
-            <div class="row">
-              <label>Logo size <input id="ov-logoScale" type="range" min="8" max="45" value="22"></label>
+              <label>Text color <input id="ov-text" type="color" value="#ffffff"></label>
+              <label>Band and website color <input id="ov-accent" type="color" value="#0f6f8f"></label>
+              <label>Website line <input id="ov-footer"></label>
+              <label class="check"><input id="ov-showLogo" type="checkbox" checked> Show the Foundation logo</label>
+              <label>Logo size <input id="ov-logoScale" type="range" min="8" max="45" value="30"></label>
               <label>Logo position
                 <select id="ov-logoPos">
                   <option value="tr">Top right</option>
@@ -151,23 +177,32 @@
                   <option value="bc">Bottom center</option>
                   <option value="bl">Bottom left</option>
                 </select></label>
-              <label class="file">Logo <input id="logo-input" type="file" accept="image/png,image/svg+xml,image/jpeg"></label>
-              <button id="logo-clear" class="ghost small">Clear logo</button>
+              <button id="btn-reset-look" type="button" class="link-btn">Put everything back to the standard look</button>
             </div>
-          </div>
-          <div class="canvas-wrap"><canvas id="canvas" width="1080" height="1080"></canvas></div>
-          <div class="row">
-            <button id="btn-download" class="primary">Download PNG</button>
-            <button id="btn-export-all" class="ghost">Export all four sizes</button>
-            <span id="export-note" class="hint"></span>
-          </div>
+          </details>
         </div>
       </div>
     </section>
-
   </main>
 </div>
-<div id="toast" class="toast hidden"></div>
+
+<dialog id="facts-dialog" class="facts">
+  <form method="dialog" id="facts-form-wrap">
+    <header>
+      <h2>Course facts</h2>
+      <p>Every post is written from these facts, and the writer will not add anything that is not here. Change them only when course details change.</p>
+    </header>
+    <div id="facts-form" class="facts-form"></div>
+    <footer>
+      <button id="facts-reset" type="button" class="link-btn danger">Restore the original facts</button>
+      <span class="spacer"></span>
+      <button value="cancel" class="ghost">Cancel</button>
+      <button id="facts-save" type="button" class="primary">Save changes</button>
+    </footer>
+  </form>
+</dialog>
+
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 <script src="app.js"></script>
 </body>
 </html>

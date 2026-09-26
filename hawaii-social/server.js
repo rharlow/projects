@@ -10,18 +10,16 @@ import { generatePostPackage, rewriteCopy, suggestAngles } from "./lib/claude.js
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(here, "data");
 const IMAGES = path.join(DATA, "images");
-const EXPORTS = path.join(DATA, "exports");
 const POSTS = path.join(DATA, "posts");
 const BRIEF = path.join(DATA, "brief.json");
 const BRIEF_DEFAULT = path.join(DATA, "brief.default.json");
 
-for (const d of [IMAGES, EXPORTS, POSTS]) await fs.mkdir(d, { recursive: true });
+for (const d of [IMAGES, POSTS]) await fs.mkdir(d, { recursive: true });
 
 const app = express();
 app.use(express.json({ limit: "25mb" }));
 app.use(express.static(path.join(here, "public")));
 app.use("/images", express.static(IMAGES));
-app.use("/exports", express.static(EXPORTS));
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -47,6 +45,7 @@ app.get("/api/status", wrap(async (_req, res) => {
   res.json({
     claude: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
     claudeModel: process.env.CLAUDE_MODEL || "claude-opus-5",
+    mock: process.env.MOCK_AI === "1",
   });
 }));
 
@@ -130,15 +129,6 @@ app.delete("/api/posts/:id", wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-app.post("/api/exports", wrap(async (req, res) => {
-  const { dataUrl, name } = req.body || {};
-  const m = /^data:image\/png;base64,(.+)$/.exec(dataUrl || "");
-  if (!m) return res.status(400).json({ error: "Expected a PNG data URL." });
-  const safe = (name || "post").replace(/[^a-z0-9_-]/gi, "_").slice(0, 60);
-  const file = `${safe}-${id()}.png`;
-  await fs.writeFile(path.join(EXPORTS, file), Buffer.from(m[1], "base64"));
-  res.json({ url: `/exports/${file}` });
-}));
 
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => console.log(`Hawaii Course social builder: http://localhost:${port}`));

@@ -1,4 +1,4 @@
-/* Hawaii Course social builder: front-end state, API calls, and canvas composer. */
+/* Hawaii Course social posts: front-end state, API calls, autosave, and the picture composer. */
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 const api = async (url, opts = {}) => {
@@ -11,9 +11,14 @@ let toastTimer;
 function toast(msg, isError = false) {
   const t = $("#toast");
   t.textContent = msg; t.classList.toggle("error", isError); t.classList.remove("hidden");
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), isError ? 6000 : 2500);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), isError ? 7000 : 3000);
 }
-const busy = (id, on) => $(id).classList.toggle("hidden", !on);
+const show = (sel, on) => $(sel).classList.toggle("hidden", !on);
+
+const PLATFORMS = ["linkedin", "facebook", "instagram"];
+const NAMES = { linkedin: "LinkedIn", facebook: "Facebook", instagram: "Instagram" };
+// Editorial targets, then each platform's hard limit.
+const LENGTH = { linkedin: [1000, 1600, 3000], facebook: [500, 900, 63206], instagram: [500, 1200, 2200] };
 
 const STARTER_ANGLES = [
   { title: "GERD or a mimic?", pitch: "How the course uses esophageal diagnostics to separate GERD from its mimics before anyone operates." },
@@ -25,233 +30,340 @@ const STARTER_ANGLES = [
   { title: "Hotel block fills first", pitch: "Registration is open and the discounted room block goes fast. Practical urgency for planners." },
   { title: "Mornings in class, afternoons on Kaua'i", pitch: "The schedule that makes a week of CME possible with family along." },
 ];
+
 const SIZES = {
-  square: { w: 1080, h: 1080, label: "square" },
-  portrait: { w: 1080, h: 1350, label: "portrait" },
-  link: { w: 1200, h: 628, label: "link" },
-  story: { w: 1080, h: 1920, label: "story" },
+  square: { w: 1080, h: 1080, file: "square" },
+  portrait: { w: 1080, h: 1350, file: "instagram-tall" },
+  link: { w: 1200, h: 628, file: "link-preview" },
+  story: { w: 1080, h: 1920, file: "story" },
 };
+
+// The standard look. "Put everything back" restores these and leaves the words and photo alone.
+const STANDARD_LOOK = { layout: "gradient", accent: "#0f6f8f", text: "#ffffff", scale: 100, topScrim: 45, bottomScrim: 82, shade: "#000000", showLogo: true, logoScale: 30, logoPos: "tr" };
+const freshOverlay = () => ({ headline: "", subline: "", footer: "", fx: 50, fy: 50, size: "square", ...STANDARD_LOOK });
+const blankCopy = () => ({ text: "", altText: "" });
+const blankCopies = () => ({ linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy() });
 
 const state = {
-  id: null, createdAt: null,
-  brief: null,
-  status: null,
-  angle: "", notes: "", angleTitle: "",
-  platform: "linkedin",
-  copy: { linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy() },
-  imageUrl: null, imageSource: null,
-  img: null, logo: null, logoUrl: null,
-  overlay: { headline: "", subline: "", footer: "", layout: "gradient", accent: "#0f6f8f", text: "#ffffff", scale: 100, fx: 50, fy: 50, size: "square", topScrim: 0, bottomScrim: 82, shade: "#000000", logoScale: 22, logoPos: "tr" },
-  variant: 0,
+  id: null, createdAt: null, brief: null,
+  angle: "", notes: "", angleTitle: "", variant: 0,
+  platform: "linkedin", linkTarget: "website",
+  copy: blankCopies(), copied: {},
+  imageUrl: null, imageSource: null, img: null, logo: null,
+  overlay: freshOverlay(),
 };
-function blankCopy() { return { body: "", hashtags: "", altText: "" }; }
 
-/* ---------- Brief ---------- */
-const BRIEF_FIELDS = [
-  ["shortName", "Short name"], ["courseName", "Full course name"], ["edition", "Edition"], ["dates", "Dates"], ["venue", "Venue"],
-  ["island", "Island"], ["directors", "Directors", "textarea"], ["founders", "History", "textarea"], ["audience", "Audience", "textarea"],
-  ["goal", "Goal of these posts", "textarea"], ["sellingPoints", "Selling points (one per line)", "lines"], ["registrationFee", "Registration fee"],
-  ["websiteUrl", "Website URL"], ["registrationUrl", "Registration URL"], ["contactEmail", "Contact email"], ["voice", "Voice rules", "textarea"],
-  ["hashtags", "Preferred hashtags (space separated)", "tags"], ["pastPosts", "Past posts to match voice (paste text, separate with a blank line)", "textarea"],
+/* ---------- Autosave ---------- */
+// Saves run one after another, so the id assigned by the first save is used by
+// every later one and a post is never duplicated.
+let saveTimer = null, inFlight = Promise.resolve(), dirty = false, quiet = false;
+const hasContent = () => Boolean(state.angle.trim() || state.imageUrl || PLATFORMS.some((p) => state.copy[p].text));
+function setSaveState(msg, isError = false) { const s = $("#save-state"); s.textContent = msg; s.classList.toggle("error", isError); }
+function markDirty() {
+  if (quiet || !hasContent()) return;
+  dirty = true; clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saveTimer = null; save(); }, 900);
+}
+function save() { inFlight = inFlight.then(doSave); return inFlight; }
+async function doSave() {
+  if (!dirty) return;
+  dirty = false; setSaveState("Saving…");
+  try {
+    const p = await api("/api/posts", { method: "POST", body: JSON.stringify(collectPost()) });
+    state.id = p.id; state.createdAt = p.createdAt;
+    setSaveState("All changes saved");
+    refreshLibrary();
+  } catch {
+    dirty = true; setSaveState("Could not save. Your work is still on screen.", true);
+  }
+}
+async function flush() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } await save(); }
+function cancelPendingSave() { clearTimeout(saveTimer); saveTimer = null; dirty = false; }
+window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ---------- Links ---------- */
+function linkFor(platform, target = state.linkTarget, brief = state.brief) {
+  const base = target === "registration" ? brief?.registrationUrl : brief?.websiteUrl;
+  if (!base) return "";
+  const u = new URL(base);
+  u.searchParams.set("utm_source", platform); u.searchParams.set("utm_medium", "social");
+  u.searchParams.set("utm_campaign", brief?.campaign || "hawaii2027");
+  return u.toString();
+}
+function composeText(body, hashtags, platform, target) {
+  const tags = Array.isArray(hashtags) ? hashtags.join(" ") : (hashtags || "");
+  const text = (body || "").replace(/\{LINK\}/g, linkFor(platform, target));
+  return tags ? `${text}\n\n${tags}` : text;
+}
+// Swap one set of links for another in all three posts, leaving every other edit alone.
+function relink(oldLinks, newLinks) {
+  for (const p of PLATFORMS) {
+    if (oldLinks[p] && newLinks[p] && oldLinks[p] !== newLinks[p]) state.copy[p].text = state.copy[p].text.split(oldLinks[p]).join(newLinks[p]);
+  }
+}
+const allLinks = (target, brief) => Object.fromEntries(PLATFORMS.map((p) => [p, linkFor(p, target, brief)]));
+
+/* ---------- Course facts ---------- */
+const FACT_FIELDS = [
+  ["shortName", "Course short name"], ["courseName", "Full course title"], ["edition", "Edition"], ["dates", "Dates"],
+  ["venue", "Location"], ["island", "Island"], ["directors", "Course directors", "long"], ["founders", "Course history", "long"],
+  ["audience", "Who these posts are for", "long"], ["goal", "What the posts should achieve", "long"],
+  ["sellingPoints", "Reasons to attend, one per line", "lines"], ["registrationFee", "Registration fee"],
+  ["websiteUrl", "Website address"], ["registrationUrl", "Registration page address"], ["contactEmail", "Contact email"],
+  ["voice", "How the posts should sound", "long"], ["hashtags", "Hashtags to use, separated by spaces", "tags"],
+  ["pastPosts", "Past posts to match, with a blank line between each", "long"],
 ];
-function renderBrief() {
-  const f = $("#brief-form"); f.innerHTML = "";
-  for (const [key, label, kind] of BRIEF_FIELDS) {
+function renderFacts() {
+  const f = $("#facts-form"); f.innerHTML = "";
+  for (const [key, label, kind] of FACT_FIELDS) {
     const l = document.createElement("label"); l.textContent = label;
-    const el = document.createElement(kind === "textarea" || kind === "lines" ? "textarea" : "input");
+    const long = kind === "long" || kind === "lines";
+    const el = document.createElement(long ? "textarea" : "input");
     el.name = key;
     const v = state.brief[key];
     el.value = kind === "lines" ? (v || []).join("\n") : kind === "tags" ? (v || []).join(" ") : (v || "");
-    if (el.tagName === "TEXTAREA") el.rows = kind === "lines" ? 8 : 4;
+    if (long) el.rows = kind === "lines" ? 8 : 3;
     l.appendChild(el); f.appendChild(l);
   }
 }
-function readBriefForm() {
+function readFacts() {
   const b = { ...state.brief };
-  for (const [key, , kind] of BRIEF_FIELDS) {
-    const v = $(`#brief-form [name=${key}]`).value;
+  for (const [key, , kind] of FACT_FIELDS) {
+    const v = $(`#facts-form [name=${key}]`).value;
     b[key] = kind === "lines" ? v.split("\n").map((s) => s.trim()).filter(Boolean) : kind === "tags" ? v.split(/\s+/).filter(Boolean) : v;
   }
   return b;
 }
-$("#brief-save").onclick = async () => {
-  try { state.brief = await api("/api/brief", { method: "PUT", body: JSON.stringify(readBriefForm()) }); applyBriefDefaults(); toast("Brief saved"); }
+async function applyNewBrief(next) {
+  const before = allLinks(state.linkTarget, state.brief);
+  state.brief = next;
+  relink(before, allLinks(state.linkTarget, state.brief));
+  showPlatform(state.platform); markDirty();
+}
+$("#btn-facts").onclick = () => { renderFacts(); $("#facts-dialog").showModal(); };
+$("#facts-save").onclick = async () => {
+  try {
+    await applyNewBrief(await api("/api/brief", { method: "PUT", body: JSON.stringify(readFacts()) }));
+    $("#facts-dialog").close(); toast("Course facts saved. New posts will use them.");
+  } catch (e) { toast(e.message, true); }
+};
+$("#facts-reset").onclick = async () => {
+  if (!confirm("Replace all the course facts with the original versions? Your changes to them will be lost.")) return;
+  try { await applyNewBrief(await api("/api/brief/reset", { method: "POST" })); renderFacts(); toast("Original course facts restored."); }
   catch (e) { toast(e.message, true); }
 };
-$("#brief-reset").onclick = async () => {
-  if (!confirm("Reset the brief to the built-in defaults?")) return;
-  state.brief = await api("/api/brief/reset", { method: "POST" }); renderBrief(); applyBriefDefaults(); toast("Brief reset");
-};
-function applyBriefDefaults() {
-  const b = state.brief;
-  if (!state.overlay.footer) state.overlay.footer = b.brand?.footer || "foregutdiseasefoundation.org";
-  if (b.brand?.accent) state.overlay.accent = b.brand.accent;
-  syncOverlayInputs(); updateLink(); render();
-}
 
-/* ---------- Angles ---------- */
+/* ---------- Step 1: topic ---------- */
 function renderAngles(list) {
   const box = $("#angles"); box.innerHTML = "";
   for (const a of list) {
-    const c = document.createElement("button"); c.type = "button"; c.className = "chip"; c.textContent = a.title; c.title = a.pitch;
-    c.onclick = () => { $$(".chip").forEach((x) => x.classList.remove("active")); c.classList.add("active"); state.angleTitle = a.title; $("#angle").value = /[.?!]$/.test(a.title) ? `${a.title} ${a.pitch}` : `${a.title}. ${a.pitch}`; state.angle = $("#angle").value; };
+    const c = document.createElement("button");
+    c.type = "button"; c.className = "chip"; c.textContent = a.title; c.title = a.pitch;
+    c.onclick = () => {
+      $$(".chip").forEach((x) => x.classList.remove("active")); c.classList.add("active");
+      state.angleTitle = a.title;
+      $("#angle").value = /[.?!]$/.test(a.title) ? `${a.title} ${a.pitch}` : `${a.title}. ${a.pitch}`;
+      state.angle = $("#angle").value; markDirty();
+    };
     box.appendChild(c);
   }
 }
 $("#btn-angles").onclick = async () => {
-  const btn = $("#btn-angles"); btn.disabled = true; btn.textContent = "Thinking…";
-  try { const { angles } = await api("/api/angles", { method: "POST", body: JSON.stringify({ count: 8 }) }); renderAngles([...angles, ...STARTER_ANGLES]); toast("New angles added"); }
+  const btn = $("#btn-angles"); btn.disabled = true; btn.textContent = "Finding topics…";
+  try { const { angles } = await api("/api/angles", { method: "POST", body: JSON.stringify({ count: 8 }) }); renderAngles([...angles, ...STARTER_ANGLES]); toast("New topics added at the front of the list."); }
   catch (e) { toast(e.message, true); }
-  finally { btn.disabled = false; btn.textContent = "Suggest angles with Claude"; }
+  finally { btn.disabled = false; btn.textContent = "Suggest more topics"; }
 };
-$("#angle").oninput = (e) => (state.angle = e.target.value);
-$("#notes").oninput = (e) => (state.notes = e.target.value);
+$("#angle").oninput = (e) => { state.angle = e.target.value; markDirty(); };
+$("#notes").oninput = (e) => { state.notes = e.target.value; markDirty(); };
 
-/* ---------- Copy ---------- */
-async function generate(variant) {
+async function writePosts(variant) {
   state.angle = $("#angle").value.trim(); state.notes = $("#notes").value.trim();
-  if (!state.angle) return toast("Pick or write an angle first.", true);
-  busy("#copy-busy", true); $("#btn-copy").disabled = true; $("#btn-variant").disabled = true;
+  if (!state.angle) { toast("Choose a topic or describe one first.", true); $("#angle").focus(); return; }
+  const had = PLATFORMS.some((p) => state.copy[p].text);
+  if (had && !variant && !confirm("Replace the posts you already have with newly written ones?")) return;
+  show("#copy-busy", true); $("#btn-copy").disabled = true; $("#btn-variant").disabled = true;
   try {
     if (variant) state.variant += 1;
     const pkg = await api("/api/copy", { method: "POST", body: JSON.stringify({ angle: state.angle, notes: state.notes, variantSeed: variant ? `${Date.now()}-${state.variant}` : undefined }) });
-    for (const p of ["linkedin", "facebook", "instagram"]) {
-      state.copy[p] = { body: pkg[p].body, hashtags: pkg[p].hashtags.join(" "), altText: pkg[p].altText };
-    }
+    for (const p of PLATFORMS) state.copy[p] = { text: composeText(pkg[p].body, pkg[p].hashtags, p), altText: pkg[p].altText };
+    state.copied = {};
     state.angleTitle = pkg.angleTitle;
     state.overlay.headline = pkg.headline; state.overlay.subline = pkg.subline;
-    syncOverlayInputs(); showPlatform(state.platform); render();
-    toast(`Copy written with ${pkg.model}`);
+    syncLookInputs(); showPlatform("linkedin"); render(); markDirty();
+    toast("Posts written. Read them over in step 2.");
+    $("#copy-area").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) { toast(e.message, true); }
-  finally { busy("#copy-busy", false); $("#btn-copy").disabled = false; $("#btn-variant").disabled = false; }
+  finally { show("#copy-busy", false); $("#btn-copy").disabled = false; $("#btn-variant").disabled = false; }
 }
-$("#btn-copy").onclick = () => generate(false);
-$("#btn-variant").onclick = () => generate(true);
+$("#btn-copy").onclick = () => writePosts(false);
+$("#btn-variant").onclick = () => writePosts(true);
 
+/* ---------- Step 2: wording ---------- */
 function showPlatform(p) {
   state.platform = p;
-  $$("#platform-tabs .tab").forEach((t) => t.classList.toggle("active", t.dataset.p === p));
-  const c = state.copy[p];
-  $("#copy-body").value = c.body; $("#copy-tags").value = c.hashtags; $("#copy-alt").value = c.altText;
-  updateFinal();
+  const has = PLATFORMS.some((x) => state.copy[x].text);
+  show("#copy-empty", !has); show("#copy-area", has); show("#btn-variant", has);
+  $$("#platform-tabs .tab").forEach((t) => {
+    t.classList.toggle("active", t.dataset.p === p);
+    t.setAttribute("aria-selected", t.dataset.p === p);
+    t.classList.toggle("copied", Boolean(state.copied[t.dataset.p]));
+  });
+  $("#copy-text").value = state.copy[p].text;
+  $("#copy-alt").value = state.copy[p].altText;
+  $("#btn-copy-post").textContent = `Copy ${NAMES[p]} post`;
+  show("#btn-copy-link", p === "instagram");
+  $("#link-target").value = state.linkTarget;
+  updateLength();
+}
+function updateLength() {
+  const p = state.platform, text = state.copy[p].text, n = text.length;
+  const [lo, hi, hard] = LENGTH[p];
+  const el = $("#length-note");
+  let msg, cls;
+  if (text && !text.includes(linkFor(p))) { msg = "The link to the course website is missing from this post."; cls = "bad"; }
+  else if (n > hard) { msg = `Too long for ${NAMES[p]}. Remove about ${(n - hard).toLocaleString()} characters.`; cls = "bad"; }
+  else if (n < lo) { msg = "A little short"; cls = "meh"; }
+  else if (n > hi) { msg = "A little long"; cls = "meh"; }
+  else { msg = "Good length"; cls = "good"; }
+  el.textContent = n ? `${msg} · ${n.toLocaleString()} characters` : "";
+  el.className = `length-note ${cls}`;
 }
 $$("#platform-tabs .tab").forEach((t) => (t.onclick = () => showPlatform(t.dataset.p)));
-$("#copy-body").oninput = (e) => { state.copy[state.platform].body = e.target.value; updateFinal(); };
-$("#copy-tags").oninput = (e) => { state.copy[state.platform].hashtags = e.target.value; updateFinal(); };
-$("#copy-alt").oninput = (e) => { state.copy[state.platform].altText = e.target.value; };
+$("#copy-text").oninput = (e) => {
+  state.copy[state.platform].text = e.target.value;
+  if (state.copied[state.platform]) { state.copied[state.platform] = false; showPlatform(state.platform); }
+  updateLength(); markDirty();
+};
+$("#copy-alt").oninput = (e) => { state.copy[state.platform].altText = e.target.value; markDirty(); };
+$("#link-target").onchange = (e) => {
+  const before = allLinks(state.linkTarget); state.linkTarget = e.target.value;
+  relink(before, allLinks(state.linkTarget));
+  showPlatform(state.platform); markDirty();
+  toast(`All three posts now link to the ${state.linkTarget === "registration" ? "registration page" : "course website"}.`);
+};
 $$(".rewrite").forEach((b) => (b.onclick = async () => {
-  const text = state.copy[state.platform].body; if (!text) return toast("Nothing to rewrite yet.", true);
-  busy("#rewrite-busy", true);
-  try { const { text: t } = await api("/api/rewrite", { method: "POST", body: JSON.stringify({ platform: state.platform, text, instruction: b.dataset.i }) }); state.copy[state.platform].body = t; showPlatform(state.platform); }
-  catch (e) { toast(e.message, true); }
-  finally { busy("#rewrite-busy", false); }
+  const p = state.platform, link = linkFor(p), text = state.copy[p].text;
+  if (!text) return;
+  show("#rewrite-busy", true); $$(".rewrite").forEach((x) => (x.disabled = true));
+  try {
+    const { text: t } = await api("/api/rewrite", { method: "POST", body: JSON.stringify({ platform: p, text: text.split(link).join("{LINK}"), instruction: b.dataset.i }) });
+    state.copy[p].text = t.replace(/\{LINK\}/g, link); state.copied[p] = false;
+    showPlatform(p); markDirty();
+  } catch (e) { toast(e.message, true); }
+  finally { show("#rewrite-busy", false); $$(".rewrite").forEach((x) => (x.disabled = false)); }
 }));
 
-function trackedLink(platform = state.platform) {
-  const b = state.brief || {};
-  const base = $("#link-target").value === "registration" ? b.registrationUrl : b.websiteUrl;
-  if (!base) return "";
-  const u = new URL(base);
-  u.searchParams.set("utm_source", platform); u.searchParams.set("utm_medium", "social");
-  u.searchParams.set("utm_campaign", $("#link-campaign").value.trim() || "hawaii2027");
-  return u.toString();
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select(); const ok = document.execCommand("copy"); ta.remove(); return ok;
+  }
 }
-function finalText(platform) {
-  const c = state.copy[platform]; const link = trackedLink(platform);
-  const body = (c.body || "").replace(/\{LINK\}/g, link);
-  return c.hashtags ? `${body}\n\n${c.hashtags}` : body;
-}
-function updateLink() { $("#link-preview").textContent = trackedLink(); updateFinal(); }
-function updateFinal() {
-  const t = finalText(state.platform); $("#copy-final").textContent = t;
-  const n = t.length;
-  const limits = { linkedin: 3000, facebook: 63206, instagram: 2200 };
-  const target = { linkedin: [1000, 1600], facebook: [500, 900], instagram: [500, 1200] }[state.platform];
-  const hard = limits[state.platform];
-  const over = n > hard;
-  const outside = n < target[0] || n > target[1];
-  $("#char-count").textContent = `${n} characters. Target ${target[0]} to ${target[1]}${over ? `. Over the ${state.platform} limit of ${hard.toLocaleString()}` : ""}`;
-  $("#char-count").style.color = over ? "var(--danger)" : outside ? "var(--muted)" : "var(--ok)";
-}
-$("#link-target").onchange = updateLink; $("#link-campaign").oninput = updateLink;
-$("#btn-copy-clip").onclick = () => navigator.clipboard.writeText(finalText(state.platform)).then(() => toast("Post copied"));
-$("#btn-copy-link").onclick = () => navigator.clipboard.writeText(trackedLink()).then(() => toast("Link copied"));
+function flashButton(btn, label) { const was = btn.textContent; btn.textContent = label; setTimeout(() => { btn.textContent = was; }, 1600); }
+$("#btn-copy-post").onclick = async () => {
+  const p = state.platform;
+  if (!(await copyText(state.copy[p].text))) return toast("Could not copy. Select the text and copy it by hand.", true);
+  state.copied[p] = true; showPlatform(p); markDirty();
+  flashButton($("#btn-copy-post"), "Copied");
+  toast(`${NAMES[p]} post copied. Paste it into ${NAMES[p]}.`);
+};
+$("#btn-copy-link").onclick = async () => { if (await copyText(linkFor("instagram"))) { flashButton($("#btn-copy-link"), "Link copied"); toast("Link copied. Paste it into your Instagram bio."); } };
+$("#btn-copy-alt").onclick = async () => { if (await copyText($("#copy-alt").value)) flashButton($("#btn-copy-alt"), "Copied"); };
 
-/* ---------- Images ---------- */
+/* ---------- Step 3: photos ---------- */
 function loadImage(url) {
   return new Promise((resolve, reject) => { const i = new Image(); i.crossOrigin = "anonymous"; i.onload = () => resolve(i); i.onerror = reject; i.src = url; });
 }
-async function useImage(url, source) {
-  try { state.img = await loadImage(url); state.imageUrl = url; state.imageSource = source; $$("#gallery img").forEach((i) => i.classList.toggle("active", i.dataset.url === url)); render(); }
-  catch { toast("Could not load that image.", true); }
+async function useImage(url, source, { keepFocus = false } = {}) {
+  try {
+    state.img = await loadImage(url); state.imageUrl = url; state.imageSource = source;
+    if (!keepFocus) { state.overlay.fx = 50; state.overlay.fy = 50; }
+    $$("#gallery img").forEach((i) => i.classList.toggle("active", i.dataset.url === url));
+    show("#drag-hint", true); $("#canvas").classList.add("draggable");
+    render(); markDirty();
+  } catch { toast("That photo could not be opened.", true); }
 }
 async function refreshGallery() {
   const { images } = await api("/api/images");
   const g = $("#gallery"); g.innerHTML = "";
-  $("#gallery-count").textContent = images.length ? `${images.length} photo${images.length === 1 ? "" : "s"}` : "";
-  if (!images.length) { g.innerHTML = '<p class="hint">No photos yet. Add some above and they stay here for every future post.</p>'; return; }
+  if (!images.length) { g.innerHTML = '<p class="empty">No photos yet.</p>'; return; }
   for (const im of images) {
     const fig = document.createElement("figure");
     const i = document.createElement("img");
-    i.src = im.url; i.dataset.url = im.url; i.loading = "lazy";
+    i.src = im.url; i.dataset.url = im.url; i.loading = "lazy"; i.alt = "Photo";
     i.classList.toggle("active", im.url === state.imageUrl);
     i.onclick = () => useImage(im.url, "library");
     const kill = document.createElement("button");
-    kill.className = "kill"; kill.textContent = "\u00d7"; kill.title = "Remove from library";
+    kill.type = "button"; kill.className = "kill"; kill.textContent = "×"; kill.title = "Remove this photo"; kill.setAttribute("aria-label", "Remove this photo");
     kill.onclick = async (e) => {
       e.stopPropagation();
-      if (!confirm("Remove this photo from the library? Saved posts that used it will lose their image.")) return;
+      if (!confirm("Remove this photo? Any saved post that uses it will lose its picture.")) return;
       try {
         await api(`/api/images/${im.url.split("/").pop()}`, { method: "DELETE" });
-        if (state.imageUrl === im.url) { state.img = null; state.imageUrl = null; render(); }
+        if (state.imageUrl === im.url) { state.img = null; state.imageUrl = null; show("#drag-hint", false); $("#canvas").classList.remove("draggable"); render(); markDirty(); }
         refreshGallery();
       } catch (err) { toast(err.message, true); }
     };
     fig.append(i, kill); g.appendChild(fig);
   }
 }
-
 async function uploadFiles(fileList) {
   const files = Array.from(fileList || []).filter((f) => /^image\/(png|jpeg|webp)$/.test(f.type));
   const skipped = (fileList?.length || 0) - files.length;
-  if (!files.length) return toast("Those files are not PNG, JPEG, or WebP.", true);
+  if (!files.length) return toast("Those files are not photos this app can use. Use JPEG, PNG, or WebP.", true);
   const fd = new FormData();
   for (const f of files) fd.append("image", f);
   try {
     const r = await api("/api/images/upload", { method: "POST", body: fd });
-    await refreshGallery();
-    await useImage(r.url, "upload");
-    toast(`Added ${r.count} photo${r.count === 1 ? "" : "s"}${skipped ? `, skipped ${skipped}` : ""}`);
+    await refreshGallery(); await useImage(r.url, "upload");
+    toast(`Added ${r.count} photo${r.count === 1 ? "" : "s"}${skipped ? `. Skipped ${skipped} that were not photos` : ""}.`);
   } catch (err) { toast(err.message, true); }
 }
 $("#file-input").onchange = async (e) => { await uploadFiles(e.target.files); e.target.value = ""; };
-
 const dz = $("#dropzone");
 for (const ev of ["dragenter", "dragover"]) dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("over"); });
 for (const ev of ["dragleave", "dragend"]) dz.addEventListener(ev, () => dz.classList.remove("over"));
 dz.addEventListener("drop", async (e) => { e.preventDefault(); dz.classList.remove("over"); await uploadFiles(e.dataTransfer?.files); });
 // Stop a stray drop elsewhere on the page from navigating away from the app.
 for (const ev of ["dragover", "drop"]) document.addEventListener(ev, (e) => { if (!dz.contains(e.target)) e.preventDefault(); });
-$("#logo-input").onchange = async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  const url = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); });
-  state.logo = await loadImage(url); state.logoUrl = url; try { localStorage.setItem("hawaii-logo", url); } catch {}
-  render(); e.target.value = "";
-};
-$("#logo-clear").onclick = () => { state.logo = null; state.logoUrl = null; try { localStorage.removeItem("hawaii-logo"); } catch {} render(); };
 
-/* ---------- Composer ---------- */
-const OV_TEXT = ["headline", "subline", "footer", "layout", "accent", "text", "shade", "logoPos"];
-const OV_NUM = ["scale", "topScrim", "bottomScrim", "logoScale"];
-const OV = [...OV_TEXT, ...OV_NUM];
-function syncOverlayInputs() {
-  for (const k of OV) $(`#ov-${k}`).value = state.overlay[k];
-  $("#focal-x").value = state.overlay.fx; $("#focal-y").value = state.overlay.fy; $("#size").value = state.overlay.size;
+/* ---------- Step 3: the look ---------- */
+const LOOK_TEXT = ["headline", "subline", "footer", "layout", "accent", "text", "shade", "logoPos"];
+const LOOK_NUM = ["scale", "topScrim", "bottomScrim", "logoScale"];
+function syncLookInputs() {
+  for (const k of [...LOOK_TEXT, ...LOOK_NUM]) $(`#ov-${k}`).value = state.overlay[k];
+  $("#ov-showLogo").checked = state.overlay.showLogo !== false;
+  $$(".size").forEach((b) => { const on = b.dataset.size === state.overlay.size; b.classList.toggle("active", on); b.setAttribute("aria-checked", on); });
 }
-for (const k of OV) $(`#ov-${k}`).oninput = (e) => { state.overlay[k] = OV_NUM.includes(k) ? Number(e.target.value) : e.target.value; render(); };
-$("#focal-x").oninput = (e) => { state.overlay.fx = Number(e.target.value); render(); };
-$("#focal-y").oninput = (e) => { state.overlay.fy = Number(e.target.value); render(); };
-$("#size").onchange = (e) => { state.overlay.size = e.target.value; render(); };
+for (const k of [...LOOK_TEXT, ...LOOK_NUM]) $(`#ov-${k}`).oninput = (e) => { state.overlay[k] = LOOK_NUM.includes(k) ? Number(e.target.value) : e.target.value; render(); markDirty(); };
+$("#ov-showLogo").onchange = (e) => { state.overlay.showLogo = e.target.checked; render(); markDirty(); };
+$$(".size").forEach((b) => (b.onclick = () => { state.overlay.size = b.dataset.size; syncLookInputs(); render(); markDirty(); }));
+$("#btn-reset-look").onclick = () => { Object.assign(state.overlay, STANDARD_LOOK); syncLookInputs(); render(); markDirty(); };
+
+// Drag the photo to reposition it inside the frame.
+(() => {
+  const cv = $("#canvas"); let drag = null;
+  cv.addEventListener("pointerdown", (e) => {
+    if (!state.img) return;
+    const { w, h } = SIZES[state.overlay.size];
+    const s = Math.max(w / state.img.width, h / state.img.height);
+    drag = { x: e.clientX, y: e.clientY, fx: state.overlay.fx, fy: state.overlay.fy,
+             ox: state.img.width * s - w, oy: state.img.height * s - h, ratio: w / cv.getBoundingClientRect().width };
+    cv.setPointerCapture(e.pointerId); cv.classList.add("dragging");
+  });
+  cv.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = (e.clientX - drag.x) * drag.ratio, dy = (e.clientY - drag.y) * drag.ratio;
+    const clamp = (v) => Math.max(0, Math.min(100, v));
+    if (drag.ox > 0) state.overlay.fx = clamp(drag.fx - (dx / drag.ox) * 100);
+    if (drag.oy > 0) state.overlay.fy = clamp(drag.fy - (dy / drag.oy) * 100);
+    render();
+  });
+  const end = () => { if (!drag) return; drag = null; cv.classList.remove("dragging"); markDirty(); };
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+})();
 
 function wrapLines(ctx, text, maxWidth) {
   const words = (text || "").split(/\s+/).filter(Boolean); const lines = []; let line = "";
@@ -260,8 +372,7 @@ function wrapLines(ctx, text, maxWidth) {
 }
 function drawCover(ctx, img, w, h, fx, fy) {
   const s = Math.max(w / img.width, h / img.height); const dw = img.width * s, dh = img.height * s;
-  const dx = (w - dw) * (fx / 100), dy = (h - dh) * (fy / 100);
-  ctx.drawImage(img, dx, dy, dw, dh);
+  ctx.drawImage(img, (w - dw) * (fx / 100), (h - dh) * (fy / 100), dw, dh);
 }
 function hexToRgba(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
 
@@ -278,8 +389,7 @@ function renderTo(canvas, sizeKey) {
   const font = (size, weight) => `${weight} ${size}px -apple-system, "Segoe UI", Helvetica, Arial, sans-serif`;
   const top = o.layout === "top";
 
-  // Headline auto-fit: shrink until it fits three lines, so a long headline
-  // never runs off the canvas or crowds the subline.
+  // Headline auto-fit: shrink until it fits three lines.
   let headSize = base * 0.072 * k; let headLines = [];
   for (let i = 0; i < 40; i++) {
     ctx.font = font(headSize, 700);
@@ -291,16 +401,15 @@ function renderTo(canvas, sizeKey) {
   const blockH = headLines.length * headSize * 1.1 + (subLines.length ? subSize * 0.6 + subLines.length * subSize * 1.3 : 0);
   const footH = o.footer ? footSize * 2.2 : 0;
 
-  // Shading. Top and bottom are independent, so a logo in a bright sky can be
-  // darkened without moving the text or changing the layout.
   const shade = o.shade || "#000000";
-  const bottomAlpha = (o.layout === "band" ? 0 : o.bottomScrim / 100) * (top ? 0.35 : 1);
+  const noShade = o.layout === "none";
+  const bottomAlpha = (o.layout === "band" || noShade ? 0 : o.bottomScrim / 100) * (top ? 0.35 : 1);
   if (bottomAlpha > 0.01) {
     const g = ctx.createLinearGradient(0, h * 0.35, 0, h);
     g.addColorStop(0, hexToRgba(shade, 0)); g.addColorStop(1, hexToRgba(shade, bottomAlpha));
     ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
   }
-  const topAlpha = Math.max(o.topScrim / 100, top ? 0.78 : 0);
+  const topAlpha = noShade ? 0 : Math.max(o.topScrim / 100, top ? 0.78 : 0);
   if (topAlpha > 0.01) {
     const g = ctx.createLinearGradient(0, 0, 0, h * (top ? 0.6 : 0.34));
     g.addColorStop(0, hexToRgba(shade, topAlpha)); g.addColorStop(1, hexToRgba(shade, 0));
@@ -325,93 +434,134 @@ function renderTo(canvas, sizeKey) {
     ctx.fillStyle = o.text; ctx.fillText(o.footer, pad + footSize * 0.8, fy + (ph - footSize) / 2 - footSize * 0.05);
   }
 
-  if (state.logo) {
-    // Sized by width, because these logos are wide lockups whose height says
-    // little about how large the wordmark actually reads.
+  if (state.logo && o.showLogo !== false) {
+    // Sized by width, because the lockup is wide and its height says little about how large it reads.
     const lw = w * (o.logoScale / 100); const lh = state.logo.height * (lw / state.logo.width);
-    const pos = o.logoPos || "tr";
-    const atTop = pos.startsWith("t"); const side = pos.slice(1);
+    const pos = o.logoPos || "tr"; const atTop = pos.startsWith("t"); const side = pos.slice(1);
     const lx = side === "c" ? (w - lw) / 2 : side === "r" ? w - pad - lw : pad;
-    // A bottom logo that is not hard right would sit on the footer pill, so lift it clear.
-    const clearsFooter = o.footer && side !== "r";
-    const ly = atTop ? pad : h - pad - lh - (clearsFooter ? footH : 0);
+    const ly = atTop ? pad : h - pad - lh - (o.footer && side !== "r" ? footH : 0);
     ctx.drawImage(state.logo, lx, ly, lw, lh);
   }
 }
 function render() { renderTo($("#canvas"), state.overlay.size); }
 
-function slug() { return (state.angleTitle || "post").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "post"; }
+const slug = () => (state.angleTitle || state.angle || "post").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "post";
 function download(canvas, name) { const a = document.createElement("a"); a.download = name; a.href = canvas.toDataURL("image/png"); a.click(); }
-$("#btn-download").onclick = () => { download($("#canvas"), `${slug()}-${SIZES[state.overlay.size].label}.png`); };
-$("#btn-export-all").onclick = async () => {
-  const off = document.createElement("canvas"); const urls = [];
+$("#btn-download").onclick = () => {
+  download($("#canvas"), `${slug()}-${SIZES[state.overlay.size].file}.png`);
+  toast("Picture downloaded. You will find it in your Downloads folder.");
+};
+$("#btn-download-all").onclick = async () => {
+  toast("Downloading four pictures. If your browser asks, choose Allow.");
+  const off = document.createElement("canvas");
   for (const key of Object.keys(SIZES)) {
-    renderTo(off, key); const dataUrl = off.toDataURL("image/png");
-    try { const { url } = await api("/api/exports", { method: "POST", body: JSON.stringify({ dataUrl, name: `${slug()}-${SIZES[key].label}` }) }); urls.push(url); } catch (e) { toast(e.message, true); }
-    download(off, `${slug()}-${SIZES[key].label}.png`);
+    renderTo(off, key); download(off, `${slug()}-${SIZES[key].file}.png`);
+    await new Promise((r) => setTimeout(r, 350)); // spaced out so browsers do not drop any
   }
-  state.exports = urls; $("#export-note").textContent = `Saved ${urls.length} files to data/exports`;
 };
 
-/* ---------- Posts ---------- */
+/* ---------- Saved posts ---------- */
 function collectPost() {
   return {
-    id: state.id, createdAt: state.createdAt, title: state.angleTitle || $("#angle").value.trim().slice(0, 60) || "Untitled",
-    angle: $("#angle").value, notes: $("#notes").value, angleTitle: state.angleTitle, copy: state.copy,
+    id: state.id, createdAt: state.createdAt,
+    title: state.angleTitle || state.angle.trim().split(/[.?!\n]/)[0].slice(0, 60) || "Untitled post",
+    angle: state.angle, notes: state.notes, angleTitle: state.angleTitle,
+    copy: state.copy, copied: state.copied, linkTarget: state.linkTarget,
     imageUrl: state.imageUrl, imageSource: state.imageSource, overlay: state.overlay,
-    linkTarget: $("#link-target").value, campaign: $("#link-campaign").value, exports: state.exports || [],
-    final: { linkedin: finalText("linkedin"), facebook: finalText("facebook"), instagram: finalText("instagram") },
   };
 }
-$("#btn-save").onclick = async () => {
-  try { const p = await api("/api/posts", { method: "POST", body: JSON.stringify(collectPost()) }); state.id = p.id; state.createdAt = p.createdAt; await refreshLibrary(); toast("Post saved"); }
-  catch (e) { toast(e.message, true); }
-};
-async function loadPost(p) {
-  state.id = p.id; state.createdAt = p.createdAt; state.angleTitle = p.angleTitle || p.title || "";
-  $("#angle").value = p.angle || ""; $("#notes").value = p.notes || ""; state.angle = p.angle || ""; state.notes = p.notes || "";
-  state.copy = { linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy(), ...(p.copy || {}) };
-  state.overlay = { ...state.overlay, ...(p.overlay || {}) }; syncOverlayInputs();
-  $("#link-target").value = p.linkTarget || "website"; $("#link-campaign").value = p.campaign || "hawaii2027";
-  state.exports = p.exports || [];
-  state.img = null; state.imageUrl = null; if (p.imageUrl) await useImage(p.imageUrl, p.imageSource);
-  showPlatform("linkedin"); updateLink(); render(); window.scrollTo({ top: 0, behavior: "smooth" });
+function migrateCopy(p) {
+  // Posts saved before the single-text-box change kept body, hashtags, and {LINK} apart.
+  const out = blankCopies();
+  for (const k of PLATFORMS) {
+    const c = p.copy?.[k] || {};
+    out[k] = c.text !== undefined ? { text: c.text, altText: c.altText || "" }
+      : { text: c.body ? composeText(c.body, c.hashtags, k, p.linkTarget || "website") : "", altText: c.altText || "" };
+  }
+  return out;
 }
-function newPost() {
-  state.id = null; state.createdAt = null; state.angleTitle = ""; state.variant = 0; state.exports = [];
-  state.copy = { linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy() };
-  $("#angle").value = ""; $("#notes").value = ""; state.angle = state.notes = "";
-  state.overlay.headline = ""; state.overlay.subline = ""; syncOverlayInputs(); $$(".chip").forEach((x) => x.classList.remove("active"));
-  state.img = null; state.imageUrl = null; showPlatform("linkedin"); render();
+async function loadPost(p) {
+  await flush();
+  quiet = true;
+  state.id = p.id; state.createdAt = p.createdAt; state.angleTitle = p.angleTitle || p.title || "";
+  state.angle = p.angle || ""; state.notes = p.notes || "";
+  $("#angle").value = state.angle; $("#notes").value = state.notes;
+  $$(".chip").forEach((x) => x.classList.toggle("active", x.textContent === state.angleTitle));
+  state.linkTarget = p.linkTarget || "website";
+  state.copy = migrateCopy(p); state.copied = p.copied || {};
+  state.overlay = { ...freshOverlay(), footer: defaultFooter(), ...(p.overlay || {}) };
+  syncLookInputs();
+  state.img = null; state.imageUrl = null; show("#drag-hint", false); $("#canvas").classList.remove("draggable");
+  if (p.imageUrl) await useImage(p.imageUrl, p.imageSource, { keepFocus: true });
+  showPlatform("linkedin"); render();
+  quiet = false;
+  setSaveState("All changes saved"); highlightCurrent();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+async function newPost() {
+  await flush();
+  resetToBlank();
+  toast("Ready for a new post.");
+  $("#angle").focus();
+}
+function resetToBlank() {
+  quiet = true;
+  state.id = null; state.createdAt = null; state.angleTitle = ""; state.variant = 0;
+  state.angle = ""; state.notes = ""; $("#angle").value = ""; $("#notes").value = "";
+  state.copy = blankCopies(); state.copied = {}; state.linkTarget = "website";
+  state.overlay = { ...freshOverlay(), footer: defaultFooter() };
+  state.img = null; state.imageUrl = null; state.imageSource = null;
+  $$(".chip").forEach((x) => x.classList.remove("active"));
+  $$("#gallery img").forEach((i) => i.classList.remove("active"));
+  show("#drag-hint", false); $("#canvas").classList.remove("draggable");
+  syncLookInputs(); showPlatform("linkedin"); render();
+  quiet = false;
+  setSaveState(""); highlightCurrent();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 $("#btn-new").onclick = newPost;
+
+function savedWhen(iso) {
+  if (!iso) return "";
+  const d = new Date(iso), now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay ? `Today at ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function highlightCurrent() { $$("#library li[data-id]").forEach((li) => li.classList.toggle("current", li.dataset.id === state.id)); }
 async function refreshLibrary() {
   const { posts } = await api("/api/posts"); const ul = $("#library"); ul.innerHTML = "";
-  if (!posts.length) { ul.innerHTML = '<li class="empty">No saved posts yet.</li>'; return; }
+  if (!posts.length) { ul.innerHTML = '<li class="empty">Nothing saved yet. Your first post will appear here as soon as you start it.</li>'; return; }
   for (const p of posts) {
-    const li = document.createElement("li");
-    const saved = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-    li.innerHTML = `<span><strong>${escapeHtml(p.title || "Untitled")}</strong><span class="meta">${saved ? `Saved ${saved}` : ""}</span></span><button class="del" title="Delete">×</button>`;
-    li.onclick = (e) => { if (!e.target.classList.contains("del")) loadPost(p); };
-    li.querySelector(".del").onclick = async (e) => { e.stopPropagation(); if (!confirm(`Delete "${p.title}"?`)) return; await api(`/api/posts/${p.id}`, { method: "DELETE" }); if (state.id === p.id) newPost(); refreshLibrary(); };
+    const li = document.createElement("li"); li.dataset.id = p.id;
+    const done = PLATFORMS.filter((k) => p.copied?.[k]).length;
+    li.innerHTML = `<span><span class="title">${escapeHtml(p.title || "Untitled post")}</span><span class="meta">${savedWhen(p.updatedAt)}${done ? ` · copied ${done} of 3` : ""}</span></span><button type="button" class="del" title="Delete this post" aria-label="Delete this post">×</button>`;
+    li.onclick = (e) => { if (!e.target.classList.contains("del") && p.id !== state.id) loadPost(p); };
+    li.querySelector(".del").onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm(`Delete "${p.title}"? This cannot be undone.`)) return;
+      if (p.id === state.id) { cancelPendingSave(); await inFlight; }
+      await api(`/api/posts/${p.id}`, { method: "DELETE" });
+      if (p.id === state.id) resetToBlank();
+      refreshLibrary();
+    };
     ul.appendChild(li);
   }
+  highlightCurrent();
 }
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+const defaultFooter = () => state.brief?.brand?.footer || "foregutdiseasefoundation.org";
 
-async function refreshStatus() {
-  const st = await api("/api/status");
-  state.status = st;
-  $("#status").textContent = st.claude ? `Claude ${st.claudeModel}` : "No ANTHROPIC_API_KEY";
-  return st;
-}
-
-/* ---------- Init ---------- */
+/* ---------- Start ---------- */
 (async function init() {
   try {
-    await refreshStatus();
-    state.brief = await api("/api/brief"); renderBrief(); renderAngles(STARTER_ANGLES);
-    try { const l = localStorage.getItem("hawaii-logo"); if (l) { state.logo = await loadImage(l); state.logoUrl = l; } } catch {}
-    applyBriefDefaults(); showPlatform("linkedin"); await refreshGallery(); await refreshLibrary();
+    const st = await api("/api/status");
+    if (st.mock) { $("#banner").textContent = "Practice mode. The posts you get are sample text, not real writing."; show("#banner", true); }
+    else if (!st.claude) { $("#banner").textContent = "The writing assistant is not connected, so Write the posts will not work yet. In Terminal, run npm run check to see why."; show("#banner", true); }
+    state.brief = await api("/api/brief");
+    renderAngles(STARTER_ANGLES);
+    try { state.logo = await loadImage("logo-default.png"); } catch {}
+    state.overlay.footer = defaultFooter();
+    syncLookInputs(); showPlatform("linkedin"); render();
+    await refreshGallery(); await refreshLibrary();
   } catch (e) { toast(e.message, true); }
 })();

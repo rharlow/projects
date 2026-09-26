@@ -24,10 +24,21 @@
   "registrationUrl": "https://foregutdiseasefoundation.org/2027-registration",
   "contactEmail": "foregutfoundation@gmail.com",
   "voice": "Plain, confident, collegial. Written by a physician for physicians. No hype, no exclamation points, no emojis on LinkedIn. Short sentences. Lead with the clinical hook, then the course, then the link. Never use em-dashes. Use oxford commas.",
-  "hashtags": ["#Foregut", "#Esophagus", "#GERD", "#Barretts", "#Achalasia", "#GISurgery", "#Gastroenterology", "#CME", "#ForegutCourse2027"],
+  "hashtags": [
+    "#Foregut",
+    "#Esophagus",
+    "#GERD",
+    "#Barretts",
+    "#Achalasia",
+    "#GISurgery",
+    "#Gastroenterology",
+    "#CME",
+    "#ForegutCourse2027"
+  ],
   "brand": {
     "accent": "#0f6f8f",
     "text": "#ffffff",
     "footer": "foregutdiseasefoundation.org"
-  }
+  },
+  "campaign": "hawaii2027"
 }
