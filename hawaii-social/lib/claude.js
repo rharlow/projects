@@ -85,13 +85,13 @@ Rules that always apply:
 - Vary the structure across posts. Do not open every post with a patient in the reader's clinic, and do not close every post the same way.
 
 Platform rules:
-- LinkedIn: 1,000 to 1,600 characters. Depth reads as substance to this audience, so do not pad and do not rush. Professional. No emojis. Three to five hashtags at the end. Line breaks between short paragraphs. Hook must not read as an ad.
-- Facebook: 500 to 900 characters. Warmer and more conversational, may address the reader as "you", one emoji at most and only if it fits. Two to four hashtags.
-- Instagram: 500 to 1,200 characters. Hook in the first 125 characters because that is what shows before "more". Short lines. Eight to fifteen hashtags. Since Instagram captions cannot carry a clickable link, the CTA says "link in bio" and still includes {LINK} on its own line for the bio and for reuse.
+- LinkedIn: Professional. No emojis. Three to five hashtags at the end. Line breaks between short paragraphs. The hook must not read as an ad, and it has to land in the first 210 characters, which is all LinkedIn shows before "see more".
+- Facebook: Warmer and more conversational, may address the reader as "you", one emoji at most and only if it fits. Two to four hashtags.
+- Instagram: Hook in the first 125 characters because that is what shows before "more". Short lines. Five to ten hashtags. Since Instagram captions cannot carry a clickable link, the CTA says "link in bio" and still includes {LINK} on its own line for the bio and for reuse.
 
 The headline and subline are burned onto the image, so keep them short and typeset-friendly. Write the headline in sentence case, never title case.`;
 
-export async function generatePostPackage({ brief, angle, notes, variantSeed }) {
+export async function generatePostPackage({ brief, angle, notes, length }) {
   if (MOCK) return mockPackage(angle);
   const client = new Anthropic();
   const user = `${briefToText(brief)}
@@ -99,7 +99,10 @@ export async function generatePostPackage({ brief, angle, notes, variantSeed }) 
 POST ANGLE
 ${angle}
 
-${notes ? `ADDITIONAL NOTES FROM THE EDITOR\n${notes}\n` : ""}${variantSeed ? `VARIANT\nProduce a fresh take that differs in hook and structure from an earlier draft. Variant seed: ${variantSeed}\n` : ""}
+${notes ? `ADDITIONAL NOTES FROM THE EDITOR\n${notes}\n` : ""}
+LENGTH
+Each of the three posts, counting everything including the link and the hashtags, should be about ${length} characters. Stay within 10 percent. The link alone takes about 110 characters, so budget the writing around it. The same target applies to all three platforms.
+
 Write the post package.`;
 
   const response = await client.messages.parse({

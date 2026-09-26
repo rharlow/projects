@@ -17,8 +17,13 @@ const show = (sel, on) => $(sel).classList.toggle("hidden", !on);
 
 const PLATFORMS = ["linkedin", "facebook", "instagram"];
 const NAMES = { linkedin: "LinkedIn", facebook: "Facebook", instagram: "Instagram" };
-// Editorial targets, then each platform's hard limit.
-const LENGTH = { linkedin: [1000, 1600, 3000], facebook: [500, 900, 63206], instagram: [500, 1200, 2200] };
+// The length staff choose in step 1, applied to all three posts. Counts everything, link and hashtags included.
+const LENGTHS = { short: { chars: 500, name: "short length" }, good: { chars: 750, name: "good length" }, long: { chars: 1000, name: "long length" } };
+// Each platform's hard limit.
+const HARD_LIMIT = { linkedin: 3000, facebook: 63206, instagram: 2200 };
+const LINK_PAGES = { home: "home page", course: "course page", registration: "registration page" };
+// What each feed shows before "see more", approximately: characters, then lines.
+const FOLD = { linkedin: [210, 3], facebook: [250, 4], instagram: [125, 2] };
 
 // Drawn from the 2027 agenda (Drive, 31 August), the 2027 faculty bios, and the course overview.
 const STARTER_ANGLES = [
@@ -49,8 +54,8 @@ const blankCopies = () => ({ linkedin: blankCopy(), facebook: blankCopy(), insta
 
 const state = {
   id: null, createdAt: null, brief: null,
-  angle: "", notes: "", angleTitle: "", variant: 0,
-  platform: "linkedin", linkTarget: "website",
+  angle: "", notes: "", angleTitle: "", length: "good",
+  platform: "linkedin", linkTarget: "home",
   copy: blankCopies(), copied: {},
   imageUrl: null, imageSource: null, img: null, logo: null,
   overlay: freshOverlay(),
@@ -85,8 +90,10 @@ function cancelPendingSave() { clearTimeout(saveTimer); saveTimer = null; dirty 
 window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 
 /* ---------- Links ---------- */
+// Posts saved before the three-page choice called the home page "website".
+const normalizeTarget = (t) => (t === "website" || !t ? "home" : t);
 function linkFor(platform, target = state.linkTarget, brief = state.brief) {
-  const base = target === "registration" ? brief?.registrationUrl : brief?.websiteUrl;
+  const base = { home: brief?.websiteUrl, course: brief?.courseUrl, registration: brief?.registrationUrl }[normalizeTarget(target)];
   if (!base) return "";
   const u = new URL(base);
   u.searchParams.set("utm_source", platform); u.searchParams.set("utm_medium", "social");
@@ -112,7 +119,7 @@ const FACT_FIELDS = [
   ["venue", "Location"], ["island", "Island"], ["directors", "Course directors", "long"], ["founders", "Course history", "long"],
   ["audience", "Who these posts are for", "long"], ["goal", "What the posts should achieve", "long"],
   ["sellingPoints", "Reasons to attend, one per line", "lines"], ["registrationFee", "Registration fee"],
-  ["websiteUrl", "Website address"], ["registrationUrl", "Registration page address"], ["contactEmail", "Contact email"],
+  ["websiteUrl", "Home page address"], ["courseUrl", "Course page address"], ["registrationUrl", "Registration page address"], ["contactEmail", "Contact email"],
   ["voice", "How the posts should sound", "long"], ["hashtags", "Hashtags to use, separated by spaces", "tags"],
   ["pastPosts", "Past posts to match, with a blank line between each", "long"],
 ];
@@ -180,33 +187,37 @@ $("#btn-angles").onclick = async () => {
 $("#angle").oninput = (e) => { state.angle = e.target.value; markDirty(); };
 $("#notes").oninput = (e) => { state.notes = e.target.value; markDirty(); };
 
-async function writePosts(variant) {
+async function writePosts() {
   state.angle = $("#angle").value.trim(); state.notes = $("#notes").value.trim();
   if (!state.angle) { toast("Choose a topic or describe one first.", true); $("#angle").focus(); return; }
   const had = PLATFORMS.some((p) => state.copy[p].text);
-  if (had && !variant && !confirm("Replace the posts you already have with newly written ones?")) return;
-  show("#copy-busy", true); $("#btn-copy").disabled = true; $("#btn-variant").disabled = true;
+  if (had && !confirm("Replace the posts you already have with newly written ones?")) return;
+  show("#copy-busy", true); $("#btn-copy").disabled = true;
   try {
-    if (variant) state.variant += 1;
-    const pkg = await api("/api/copy", { method: "POST", body: JSON.stringify({ angle: state.angle, notes: state.notes, variantSeed: variant ? `${Date.now()}-${state.variant}` : undefined }) });
+    const pkg = await api("/api/copy", { method: "POST", body: JSON.stringify({ angle: state.angle, notes: state.notes, length: LENGTHS[state.length].chars }) });
     for (const p of PLATFORMS) state.copy[p] = { text: composeText(pkg[p].body, pkg[p].hashtags, p), altText: pkg[p].altText };
-    state.copied = {};
+    state.copied = {}; for (const k of PLATFORMS) expanded[k] = false;
     state.angleTitle = pkg.angleTitle;
     state.overlay.headline = pkg.headline; state.overlay.subline = pkg.subline;
     syncLookInputs(); showPlatform("linkedin"); render(); markDirty();
     toast("Posts written. Read them over in step 2.");
     $("#copy-area").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) { toast(e.message, true); }
-  finally { show("#copy-busy", false); $("#btn-copy").disabled = false; $("#btn-variant").disabled = false; }
+  finally { show("#copy-busy", false); $("#btn-copy").disabled = false; }
 }
-$("#btn-copy").onclick = () => writePosts(false);
-$("#btn-variant").onclick = () => writePosts(true);
+$("#btn-copy").onclick = () => writePosts();
+
+function syncLength() {
+  $$(".len").forEach((b) => { const on = b.dataset.len === state.length; b.classList.toggle("active", on); b.setAttribute("aria-checked", on); });
+}
+$$(".len").forEach((b) => (b.onclick = () => { state.length = b.dataset.len; syncLength(); updateLength(); markDirty(); }));
 
 /* ---------- Step 2: wording ---------- */
 function showPlatform(p) {
   state.platform = p;
   const has = PLATFORMS.some((x) => state.copy[x].text);
-  show("#copy-empty", !has); show("#copy-area", has); show("#btn-variant", has);
+  show("#copy-empty", !has); show("#copy-area", has);
+  show("#preview-empty", !has); show("#previews", has);
   $$("#platform-tabs .tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.p === p);
     t.setAttribute("aria-selected", t.dataset.p === p);
@@ -217,33 +228,33 @@ function showPlatform(p) {
   $("#btn-copy-post").textContent = `Copy ${NAMES[p]} post`;
   show("#btn-copy-link", p === "instagram");
   $("#link-target").value = state.linkTarget;
-  updateLength();
+  updateLength(); renderPreviewText();
 }
 function updateLength() {
   const p = state.platform, text = state.copy[p].text, n = text.length;
-  const [lo, hi, hard] = LENGTH[p];
+  const { chars, name } = LENGTHS[state.length];
   const el = $("#length-note");
   let msg, cls;
-  if (text && !text.includes(linkFor(p))) { msg = "The link to the course website is missing from this post."; cls = "bad"; }
-  else if (n > hard) { msg = `Too long for ${NAMES[p]}. Remove about ${(n - hard).toLocaleString()} characters.`; cls = "bad"; }
-  else if (n < lo) { msg = "A little short"; cls = "meh"; }
-  else if (n > hi) { msg = "A little long"; cls = "meh"; }
-  else { msg = "Good length"; cls = "good"; }
-  el.textContent = n ? `${msg} · ${n.toLocaleString()} characters` : "";
+  if (text && !text.includes(linkFor(p))) { msg = "The link is missing from this post."; cls = "bad"; }
+  else if (n > HARD_LIMIT[p]) { msg = `Too long for ${NAMES[p]}. Remove about ${(n - HARD_LIMIT[p]).toLocaleString()} characters.`; cls = "bad"; }
+  else if (n < chars * 0.8) { msg = `Shorter than the ${name} you chose`; cls = "meh"; }
+  else if (n > chars * 1.2) { msg = `Longer than the ${name} you chose`; cls = "meh"; }
+  else { msg = `Right for a ${name} post`; cls = "good"; }
+  el.textContent = n ? `${msg} · ${n.toLocaleString()} of about ${chars.toLocaleString()} characters` : "";
   el.className = `length-note ${cls}`;
 }
 $$("#platform-tabs .tab").forEach((t) => (t.onclick = () => showPlatform(t.dataset.p)));
 $("#copy-text").oninput = (e) => {
   state.copy[state.platform].text = e.target.value;
   if (state.copied[state.platform]) { state.copied[state.platform] = false; showPlatform(state.platform); }
-  updateLength(); markDirty();
+  updateLength(); renderPreviewText(); markDirty();
 };
 $("#copy-alt").oninput = (e) => { state.copy[state.platform].altText = e.target.value; markDirty(); };
 $("#link-target").onchange = (e) => {
   const before = allLinks(state.linkTarget); state.linkTarget = e.target.value;
   relink(before, allLinks(state.linkTarget));
   showPlatform(state.platform); markDirty();
-  toast(`All three posts now link to the ${state.linkTarget === "registration" ? "registration page" : "course website"}.`);
+  toast(`All three posts now link to the ${LINK_PAGES[state.linkTarget]}.`);
 };
 $$(".rewrite").forEach((b) => (b.onclick = async () => {
   const p = state.platform, link = linkFor(p), text = state.copy[p].text;
@@ -331,6 +342,13 @@ for (const ev of ["dragleave", "dragend"]) dz.addEventListener(ev, () => dz.clas
 dz.addEventListener("drop", async (e) => { e.preventDefault(); dz.classList.remove("over"); await uploadFiles(e.dataTransfer?.files); });
 // Stop a stray drop elsewhere on the page from navigating away from the app.
 for (const ev of ["dragover", "drop"]) document.addEventListener(ev, (e) => { if (!dz.contains(e.target)) e.preventDefault(); });
+
+/* ---------- Step 3: tool tabs ---------- */
+function showTool(name) {
+  $$(".tool-tab").forEach((t) => { const on = t.dataset.tool === name; t.classList.toggle("active", on); t.setAttribute("aria-selected", on); });
+  $$(".tool-pane").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== name));
+}
+$$(".tool-tab").forEach((t) => (t.onclick = () => showTool(t.dataset.tool)));
 
 /* ---------- Step 3: the look ---------- */
 const LOOK_TEXT = ["headline", "subline", "footer", "layout", "accent", "text", "shade", "logoPos"];
@@ -446,7 +464,53 @@ function renderTo(canvas, sizeKey) {
     ctx.drawImage(state.logo, lx, ly, lw, lh);
   }
 }
-function render() { renderTo($("#canvas"), state.overlay.size); }
+function render() { renderTo($("#canvas"), state.overlay.size); drawPreviewImages(); }
+
+/* ---------- Step 4: previews ---------- */
+function linkify(escaped, platform) {
+  // Instagram captions do not make web links clickable, only hashtags.
+  let out = escaped;
+  if (platform !== "instagram") out = out.replace(/(https?:\/\/[^\s<]+)/g, '<a>$1</a>');
+  return out.replace(/(^|\s)(#[\w]+)/g, '$1<a>$2</a>');
+}
+function foldText(text, [maxChars, maxLines]) {
+  const lines = text.split("\n");
+  let cut = lines.slice(0, maxLines).join("\n");
+  if (cut.length > maxChars) cut = cut.slice(0, maxChars).replace(/\s+\S*$/, "");
+  return cut.length < text.trimEnd().length ? cut.trimEnd() : null;
+}
+const expanded = {};
+function renderPreviewText() {
+  const name = state.brief?.accountName || "Foregut Disease Foundation";
+  for (const p of PLATFORMS) {
+    const fig = $(`.pv[data-p="${p}"]`); if (!fig) continue;
+    fig.querySelector(".pv-name").textContent = name;
+    const full = state.copy[p].text || "";
+    const folded = expanded[p] ? null : foldText(full, FOLD[p]);
+    const shown = linkify(escapeHtml(folded ?? full), p);
+    const who = p === "instagram" ? `<span class="who">${escapeHtml(name)}</span>` : "";
+    const gap = folded !== null && /[.!?:]$/.test(folded) ? " " : "";
+    const more = folded !== null ? `${gap}\u2026 <button type="button" class="pv-more" data-p="${p}">${p === "instagram" ? "more" : "see more"}</button>` : "";
+    fig.querySelector(".pv-text").innerHTML = who + shown + more;
+  }
+}
+$("#previews").addEventListener("click", (e) => {
+  const b = e.target.closest(".pv-more"); if (!b) return;
+  expanded[b.dataset.p] = true; renderPreviewText();
+});
+let previewFrame = null;
+function drawPreviewImages() {
+  if (previewFrame) return;
+  previewFrame = requestAnimationFrame(() => {
+    previewFrame = null;
+    const src = $("#canvas");
+    for (const cv of $$(".pv-img")) {
+      const w = 720, h = Math.round(w * src.height / src.width);
+      if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+      cv.getContext("2d").drawImage(src, 0, 0, w, h);
+    }
+  });
+}
 
 const slug = () => (state.angleTitle || state.angle || "post").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "post";
 function download(canvas, name) { const a = document.createElement("a"); a.download = name; a.href = canvas.toDataURL("image/png"); a.click(); }
@@ -468,7 +532,7 @@ function collectPost() {
   return {
     id: state.id, createdAt: state.createdAt,
     title: state.angleTitle || state.angle.trim().split(/[.?!\n]/)[0].slice(0, 60) || "Untitled post",
-    angle: state.angle, notes: state.notes, angleTitle: state.angleTitle,
+    angle: state.angle, notes: state.notes, angleTitle: state.angleTitle, length: state.length,
     copy: state.copy, copied: state.copied, linkTarget: state.linkTarget,
     imageUrl: state.imageUrl, imageSource: state.imageSource, overlay: state.overlay,
   };
@@ -479,7 +543,7 @@ function migrateCopy(p) {
   for (const k of PLATFORMS) {
     const c = p.copy?.[k] || {};
     out[k] = c.text !== undefined ? { text: c.text, altText: c.altText || "" }
-      : { text: c.body ? composeText(c.body, c.hashtags, k, p.linkTarget || "website") : "", altText: c.altText || "" };
+      : { text: c.body ? composeText(c.body, c.hashtags, k, normalizeTarget(p.linkTarget)) : "", altText: c.altText || "" };
   }
   return out;
 }
@@ -490,7 +554,9 @@ async function loadPost(p) {
   state.angle = p.angle || ""; state.notes = p.notes || "";
   $("#angle").value = state.angle; $("#notes").value = state.notes;
   $$(".chip").forEach((x) => x.classList.toggle("active", x.textContent === state.angleTitle));
-  state.linkTarget = p.linkTarget || "website";
+  state.linkTarget = normalizeTarget(p.linkTarget);
+  state.length = LENGTHS[p.length] ? p.length : "good"; syncLength();
+  for (const k of PLATFORMS) expanded[k] = false;
   state.copy = migrateCopy(p); state.copied = p.copied || {};
   state.overlay = { ...freshOverlay(), footer: defaultFooter(), ...(p.overlay || {}) };
   syncLookInputs();
@@ -509,9 +575,10 @@ async function newPost() {
 }
 function resetToBlank() {
   quiet = true;
-  state.id = null; state.createdAt = null; state.angleTitle = ""; state.variant = 0;
+  state.id = null; state.createdAt = null; state.angleTitle = ""; state.length = "good"; syncLength();
+  for (const k of PLATFORMS) expanded[k] = false;
   state.angle = ""; state.notes = ""; $("#angle").value = ""; $("#notes").value = "";
-  state.copy = blankCopies(); state.copied = {}; state.linkTarget = "website";
+  state.copy = blankCopies(); state.copied = {}; state.linkTarget = "home";
   state.overlay = { ...freshOverlay(), footer: defaultFooter() };
   state.img = null; state.imageUrl = null; state.imageSource = null;
   $$(".chip").forEach((x) => x.classList.remove("active"));

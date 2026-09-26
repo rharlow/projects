@@ -33,11 +33,14 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
   res.status(err.status || 500).json({ error: err.message || String(err) });
 });
 
+// A saved copy of the facts wins, but fields added to the defaults since it was
+// saved (a new page address, say) still come through.
 async function readBrief() {
+  const defaults = JSON.parse(await fs.readFile(BRIEF_DEFAULT, "utf8"));
   try {
-    return JSON.parse(await fs.readFile(BRIEF, "utf8"));
+    return { ...defaults, ...JSON.parse(await fs.readFile(BRIEF, "utf8")) };
   } catch {
-    return JSON.parse(await fs.readFile(BRIEF_DEFAULT, "utf8"));
+    return defaults;
   }
 }
 
@@ -65,10 +68,11 @@ app.post("/api/angles", wrap(async (req, res) => {
 }));
 
 app.post("/api/copy", wrap(async (req, res) => {
-  const { angle, notes, variantSeed } = req.body || {};
-  if (!angle || !angle.trim()) return res.status(400).json({ error: "Pick or write an angle first." });
+  const { angle, notes } = req.body || {};
+  if (!angle || !angle.trim()) return res.status(400).json({ error: "Choose a topic or describe one first." });
+  const length = Math.min(2000, Math.max(300, Math.round(Number(req.body?.length) || 750)));
   const brief = await readBrief();
-  res.json(await generatePostPackage({ brief, angle, notes, variantSeed }));
+  res.json(await generatePostPackage({ brief, angle, notes, length }));
 }));
 
 app.post("/api/rewrite", wrap(async (req, res) => {

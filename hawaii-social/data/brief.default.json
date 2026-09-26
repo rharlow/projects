@@ -24,7 +24,8 @@
     "The Dutch and US approaches to high-grade dysplasia and T1 adenocarcinoma are presented side by side, by Roos Pouw and Felice Schnoll-Sussman, and so are the Dutch and Memorial Sloan Kettering experience with surgery after failed endotherapy."
   ],
   "registrationFee": "$1,500",
-  "websiteUrl": "https://foregutdiseasefoundation.org",
+  "websiteUrl": "https://foregutdiseasefoundation.org/",
+  "courseUrl": "https://foregutdiseasefoundation.org/2027-overview",
   "registrationUrl": "https://foregutdiseasefoundation.org/2027-registration",
   "contactEmail": "foregutfoundation@gmail.com",
   "voice": "Plain, confident, collegial. Written by a physician for physicians. No hype, no exclamation points, no emojis on LinkedIn. Short sentences. Lead with the clinical hook, then the course, then the link. Never use em-dashes. Use oxford commas.",
@@ -43,5 +44,6 @@
     "text": "#ffffff",
     "footer": "foregutdiseasefoundation.org"
   },
-  "campaign": "hawaii2027"
+  "campaign": "hawaii2027",
+  "accountName": "Foregut Disease Foundation"
 }
