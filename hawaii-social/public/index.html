@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Hawaii Course Social Builder</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -47,7 +50,7 @@
       <label>Notes for the writer (optional)
         <input id="notes" placeholder="Example: mention Pandolfino's GERD mimics talk was the top-rated session last year."></label>
       <div class="row">
-        <button id="btn-copy" class="primary">Generate copy and image prompt</button>
+        <button id="btn-copy" class="primary">Generate copy</button>
         <button id="btn-variant" class="ghost">Another take</button>
         <span id="copy-busy" class="busy hidden">Writing…</span>
       </div>
@@ -101,18 +104,6 @@
             <label class="file">Choose photos <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp" multiple></label>
             <p class="hint">Or drag photos here. PNG, JPEG, or WebP, several at once. Landscape shots crop cleanly to every size.</p>
           </div>
-          <label>Photo direction from Claude
-            <textarea id="image-prompt" rows="3" placeholder="What kind of photo suits this post."></textarea></label>
-          <div id="gen-controls" class="row hidden">
-            <select id="image-orientation">
-              <option value="landscape">Landscape</option>
-              <option value="square">Square</option>
-              <option value="portrait">Portrait</option>
-            </select>
-            <button id="btn-generate" class="primary">Generate image</button>
-            <span id="image-busy" class="busy hidden">Generating…</span>
-          </div>
-          <span id="image-note" class="hint"></span>
           <h3>Photo library <span id="gallery-count" class="hint"></span></h3>
           <div id="gallery" class="gallery"></div>
         </div>
@@ -174,26 +165,6 @@
       </div>
     </section>
 
-    <section class="panel step">
-      <div class="step-head"><span class="num">4</span><h2>Schedule</h2></div>
-      <div class="row wrap">
-        <label>Title <input id="post-title" placeholder="Internal name"></label>
-        <label>Status
-          <select id="post-status">
-            <option value="draft">Draft</option>
-            <option value="ready">Ready</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="posted">Posted</option>
-          </select></label>
-        <label>Date <input id="post-date" type="date"></label>
-        <label>Platforms
-          <span class="checks">
-            <label><input type="checkbox" class="pf" value="linkedin" checked> LinkedIn</label>
-            <label><input type="checkbox" class="pf" value="facebook" checked> Facebook</label>
-            <label><input type="checkbox" class="pf" value="instagram" checked> Instagram</label>
-          </span></label>
-      </div>
-    </section>
   </main>
 </div>
 <div id="toast" class="toast hidden"></div>

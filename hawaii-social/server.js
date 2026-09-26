@@ -6,7 +6,6 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { generatePostPackage, rewriteCopy, suggestAngles } from "./lib/claude.js";
-import { generateImage, imageGenStatus } from "./lib/imagegen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(here, "data");
@@ -48,7 +47,6 @@ app.get("/api/status", wrap(async (_req, res) => {
   res.json({
     claude: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
     claudeModel: process.env.CLAUDE_MODEL || "claude-opus-5",
-    image: imageGenStatus(),
   });
 }));
 
@@ -103,14 +101,6 @@ app.delete("/api/images/:name", wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-app.post("/api/images/generate", wrap(async (req, res) => {
-  const { prompt, orientation } = req.body || {};
-  if (!prompt) return res.status(400).json({ error: "An image prompt is required." });
-  const { buffer } = await generateImage({ prompt, orientation });
-  const name = `${id()}.png`;
-  await fs.writeFile(path.join(IMAGES, name), buffer);
-  res.json({ url: `/images/${name}`, source: "generated", prompt });
-}));
 
 app.get("/api/images", wrap(async (_req, res) => {
   const files = (await fs.readdir(IMAGES)).filter((f) => /\.(png|jpe?g|webp)$/i.test(f));

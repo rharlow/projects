@@ -39,10 +39,9 @@ const state = {
   angle: "", notes: "", angleTitle: "",
   platform: "linkedin",
   copy: { linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy() },
-  imagePrompt: "", imageUrl: null, imageSource: null,
+  imageUrl: null, imageSource: null,
   img: null, logo: null, logoUrl: null,
   overlay: { headline: "", subline: "", footer: "", layout: "gradient", accent: "#0f6f8f", text: "#ffffff", scale: 100, fx: 50, fy: 50, size: "square", topScrim: 0, bottomScrim: 82, shade: "#000000", logoScale: 22, logoPos: "tr" },
-  title: "", postStatus: "draft", date: "", platforms: ["linkedin", "facebook", "instagram"],
   variant: 0,
 };
 function blankCopy() { return { body: "", hashtags: "", altText: "" }; }
@@ -121,8 +120,6 @@ async function generate(variant) {
     }
     state.angleTitle = pkg.angleTitle;
     state.overlay.headline = pkg.headline; state.overlay.subline = pkg.subline;
-    state.imagePrompt = pkg.imagePrompt; $("#image-prompt").value = pkg.imagePrompt;
-    if (!state.title) { state.title = pkg.angleTitle; $("#post-title").value = state.title; }
     syncOverlayInputs(); showPlatform(state.platform); render();
     toast(`Copy written with ${pkg.model}`);
   } catch (e) { toast(e.message, true); }
@@ -235,14 +232,6 @@ for (const ev of ["dragleave", "dragend"]) dz.addEventListener(ev, () => dz.clas
 dz.addEventListener("drop", async (e) => { e.preventDefault(); dz.classList.remove("over"); await uploadFiles(e.dataTransfer?.files); });
 // Stop a stray drop elsewhere on the page from navigating away from the app.
 for (const ev of ["dragover", "drop"]) document.addEventListener(ev, (e) => { if (!dz.contains(e.target)) e.preventDefault(); });
-$("#image-prompt").oninput = (e) => (state.imagePrompt = e.target.value);
-$("#btn-generate").onclick = async () => {
-  const prompt = $("#image-prompt").value.trim(); if (!prompt) return toast("Write or generate an image prompt first.", true);
-  busy("#image-busy", true); $("#btn-generate").disabled = true;
-  try { const { url } = await api("/api/images/generate", { method: "POST", body: JSON.stringify({ prompt, orientation: $("#image-orientation").value }) }); await refreshGallery(); await useImage(url, "generated"); toast("Image generated"); }
-  catch (e) { toast(e.message, true); await refreshStatus().catch(() => {}); }
-  finally { busy("#image-busy", false); $("#btn-generate").disabled = false; }
-};
 $("#logo-input").onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return;
   const url = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(f); });
@@ -351,7 +340,7 @@ function renderTo(canvas, sizeKey) {
 }
 function render() { renderTo($("#canvas"), state.overlay.size); }
 
-function slug() { return (state.title || state.angleTitle || "post").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "post"; }
+function slug() { return (state.angleTitle || "post").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 40) || "post"; }
 function download(canvas, name) { const a = document.createElement("a"); a.download = name; a.href = canvas.toDataURL("image/png"); a.click(); }
 $("#btn-download").onclick = () => { download($("#canvas"), `${slug()}-${SIZES[state.overlay.size].label}.png`); };
 $("#btn-export-all").onclick = async () => {
@@ -367,10 +356,9 @@ $("#btn-export-all").onclick = async () => {
 /* ---------- Posts ---------- */
 function collectPost() {
   return {
-    id: state.id, createdAt: state.createdAt, title: $("#post-title").value.trim() || state.angleTitle || "Untitled",
-    status: $("#post-status").value, date: $("#post-date").value, platforms: $$(".pf:checked").map((c) => c.value),
+    id: state.id, createdAt: state.createdAt, title: state.angleTitle || $("#angle").value.trim().slice(0, 60) || "Untitled",
     angle: $("#angle").value, notes: $("#notes").value, angleTitle: state.angleTitle, copy: state.copy,
-    imagePrompt: $("#image-prompt").value, imageUrl: state.imageUrl, imageSource: state.imageSource, overlay: state.overlay,
+    imageUrl: state.imageUrl, imageSource: state.imageSource, overlay: state.overlay,
     linkTarget: $("#link-target").value, campaign: $("#link-campaign").value, exports: state.exports || [],
     final: { linkedin: finalText("linkedin"), facebook: finalText("facebook"), instagram: finalText("instagram") },
   };
@@ -380,12 +368,9 @@ $("#btn-save").onclick = async () => {
   catch (e) { toast(e.message, true); }
 };
 async function loadPost(p) {
-  state.id = p.id; state.createdAt = p.createdAt; state.title = p.title; state.angleTitle = p.angleTitle || "";
-  $("#post-title").value = p.title || ""; $("#post-status").value = p.status || "draft"; $("#post-date").value = p.date || "";
-  $$(".pf").forEach((c) => (c.checked = (p.platforms || []).includes(c.value)));
+  state.id = p.id; state.createdAt = p.createdAt; state.angleTitle = p.angleTitle || p.title || "";
   $("#angle").value = p.angle || ""; $("#notes").value = p.notes || ""; state.angle = p.angle || ""; state.notes = p.notes || "";
   state.copy = { linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy(), ...(p.copy || {}) };
-  $("#image-prompt").value = p.imagePrompt || ""; state.imagePrompt = p.imagePrompt || "";
   state.overlay = { ...state.overlay, ...(p.overlay || {}) }; syncOverlayInputs();
   $("#link-target").value = p.linkTarget || "website"; $("#link-campaign").value = p.campaign || "hawaii2027";
   state.exports = p.exports || [];
@@ -393,10 +378,9 @@ async function loadPost(p) {
   showPlatform("linkedin"); updateLink(); render(); window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function newPost() {
-  state.id = null; state.createdAt = null; state.title = ""; state.angleTitle = ""; state.variant = 0; state.exports = [];
+  state.id = null; state.createdAt = null; state.angleTitle = ""; state.variant = 0; state.exports = [];
   state.copy = { linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy() };
-  $("#post-title").value = ""; $("#post-status").value = "draft"; $("#post-date").value = ""; $$(".pf").forEach((c) => (c.checked = true));
-  $("#angle").value = ""; $("#notes").value = ""; $("#image-prompt").value = ""; state.angle = state.notes = state.imagePrompt = "";
+  $("#angle").value = ""; $("#notes").value = ""; state.angle = state.notes = "";
   state.overlay.headline = ""; state.overlay.subline = ""; syncOverlayInputs(); $$(".chip").forEach((x) => x.classList.remove("active"));
   state.img = null; state.imageUrl = null; showPlatform("linkedin"); render();
 }
@@ -406,7 +390,8 @@ async function refreshLibrary() {
   if (!posts.length) { ul.innerHTML = '<li class="empty">No saved posts yet.</li>'; return; }
   for (const p of posts) {
     const li = document.createElement("li");
-    li.innerHTML = `<span><strong>${escapeHtml(p.title || "Untitled")}</strong><span class="meta">${p.date || "no date"} · ${(p.platforms || []).join(", ")}</span></span><span><span class="badge ${p.status}">${p.status}</span> <button class="del" title="Delete">×</button></span>`;
+    const saved = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+    li.innerHTML = `<span><strong>${escapeHtml(p.title || "Untitled")}</strong><span class="meta">${saved ? `Saved ${saved}` : ""}</span></span><button class="del" title="Delete">×</button>`;
     li.onclick = (e) => { if (!e.target.classList.contains("del")) loadPost(p); };
     li.querySelector(".del").onclick = async (e) => { e.stopPropagation(); if (!confirm(`Delete "${p.title}"?`)) return; await api(`/api/posts/${p.id}`, { method: "DELETE" }); if (state.id === p.id) newPost(); refreshLibrary(); };
     ul.appendChild(li);
@@ -417,10 +402,7 @@ function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&am
 async function refreshStatus() {
   const st = await api("/api/status");
   state.status = st;
-  const img = st.image.enabled ? `images via ${st.image.model}` : "uploaded photos";
-  $("#status").textContent = `${st.claude ? `Claude ${st.claudeModel}` : "No ANTHROPIC_API_KEY"} \u00b7 ${img}`;
-  $("#gen-controls").classList.toggle("hidden", !st.image.enabled);
-  $("#image-note").textContent = st.image.enabled ? "" : (st.image.reason && st.image.latched ? st.image.reason : "Working from uploaded photos. Use the direction above to pick or shoot one.");
+  $("#status").textContent = st.claude ? `Claude ${st.claudeModel}` : "No ANTHROPIC_API_KEY";
   return st;
 }
 

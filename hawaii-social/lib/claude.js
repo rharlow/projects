@@ -12,7 +12,6 @@ function mockPackage(angle) {
     angleTitle: "Mock: " + angle.slice(0, 30),
     headline: "GERD, or a GERD mimic?",
     subline: "February 4 to 9, 2027 · Kaua'i",
-    imagePrompt: "Editorial photograph of a quiet seminar room at dawn with open notebooks, warm side light, shallow depth of field, no people, no text.",
     linkedin: { hook: "Most dysphagia workups stop too early.", body: body("LinkedIn"), hashtags: ["#Foregut", "#GERD", "#CME"], altText: "Seminar room at dawn." },
     facebook: { hook: "Most dysphagia workups stop too early.", body: body("Facebook"), hashtags: ["#Foregut", "#GERD"], altText: "Seminar room at dawn." },
     instagram: { hook: "Most dysphagia workups stop too early.", body: body("Instagram") + "\n\nLink in bio.", hashtags: ["#Foregut", "#GERD", "#Esophagus", "#Gastroenterology", "#GISurgery", "#CME", "#Kauai", "#ForegutCourse2027"], altText: "Seminar room at dawn." },
@@ -30,7 +29,6 @@ const PostPackage = z.object({
   angleTitle: z.string().describe("Short internal label for this post idea."),
   headline: z.string().describe("Overlay headline for the graphic. Max 8 words, in sentence case (capitalize only the first word and proper nouns, so \"GERD, or something wearing its symptoms\", never \"GERD, Or Something Wearing Its Symptoms\"). No period."),
   subline: z.string().describe("Overlay subline for the graphic. Max 12 words, usually dates and island or the one-line promise."),
-  imagePrompt: z.string().describe("Two or three sentences of art direction for the photograph that goes with this post: what it should show, the light and mood, and what to avoid. Written so the editor can use it to pick a real photo from the course archive or brief a photographer. Photographic and editorial, no text or logos in the frame, no fabricated clinical imagery."),
   linkedin: PlatformCopy,
   facebook: PlatformCopy,
   instagram: PlatformCopy,
@@ -91,7 +89,7 @@ Platform rules:
 - Facebook: 500 to 900 characters. Warmer and more conversational, may address the reader as "you", one emoji at most and only if it fits. Two to four hashtags.
 - Instagram: 500 to 1,200 characters. Hook in the first 125 characters because that is what shows before "more". Short lines. Eight to fifteen hashtags. Since Instagram captions cannot carry a clickable link, the CTA says "link in bio" and still includes {LINK} on its own line for the bio and for reuse.
 
-The headline and subline are burned onto the image, so keep them short and typeset-friendly. Write the headline in sentence case, never title case. The image direction describes a photograph with no text or logos in the frame and no fabricated clinical imagery (no staged endoscopy or invented scans). Prefer what the course actually looks like: the room during discussion, a speaker mid-sentence, notebooks and coffee before a 7am session, the venue at dawn. Name one thing to avoid, so the editor knows what would undercut the post.`;
+The headline and subline are burned onto the image, so keep them short and typeset-friendly. Write the headline in sentence case, never title case.`;
 
 export async function generatePostPackage({ brief, angle, notes, variantSeed }) {
   if (MOCK) return mockPackage(angle);

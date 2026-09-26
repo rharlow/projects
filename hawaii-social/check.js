@@ -47,32 +47,6 @@ if (shellKey && shellKey !== value) {
   console.log("     The app now forces the .env value, so this is handled. Pull the latest code if you have not.");
 }
 
-// Image generation is optional, and mixing up the keys is the common trip-up.
-const readVar = (name) => {
-  const line = lines.find((l) => new RegExp(`^\\s*${name}\\s*=`).test(l));
-  if (!line) return "";
-  return line.replace(new RegExp(`^\\s*${name}\\s*=`), "").trim().replace(/^["']|["']$/g, "").trim();
-};
-const gem = readVar("GEMINI_API_KEY");
-const oa = readVar("OPENAI_API_KEY");
-const isAnthropic = (k) => k && (k.startsWith("sk-ant-") || k === value);
-
-if (isAnthropic(gem) || isAnthropic(oa)) {
-  const slot = isAnthropic(gem) ? "GEMINI_API_KEY" : "OPENAI_API_KEY";
-  say(false, `${slot} holds your ANTHROPIC key. Those are different companies.`);
-  console.log("     Claude cannot generate images, so that feature needs a separate account.");
-  console.log("     For Google: get a key at https://aistudio.google.com/apikey (starts with AIza).");
-  console.log("     Or blank the line out and upload photos instead. Everything else works either way.");
-} else if (gem && !gem.startsWith("AIza")) {
-  say(false, "GEMINI_API_KEY does not look like a Google key. Those start with AIza.");
-} else if (gem) {
-  say(true, `Google key present, ${gem.length} characters. Images will generate with Gemini.`);
-} else if (oa && oa.startsWith("sk-")) {
-  say(true, `OpenAI key present, ${oa.length} characters. Set IMAGE_PROVIDER=openai to use it.`);
-} else {
-  say(true, "No image key set. Image generation is off and uploads still work.");
-}
-
 console.log("\nTesting the key against Anthropic ...");
 const res = await fetch("https://api.anthropic.com/v1/messages", {
   method: "POST",
