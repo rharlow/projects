@@ -20,15 +20,18 @@ const NAMES = { linkedin: "LinkedIn", facebook: "Facebook", instagram: "Instagra
 // Editorial targets, then each platform's hard limit.
 const LENGTH = { linkedin: [1000, 1600, 3000], facebook: [500, 900, 63206], instagram: [500, 1200, 2200] };
 
+// Drawn from the 2027 agenda (Drive, 31 August), the 2027 faculty bios, and the course overview.
 const STARTER_ANGLES = [
-  { title: "GERD or a mimic?", pitch: "How the course uses esophageal diagnostics to separate GERD from its mimics before anyone operates." },
-  { title: "Surgeon versus gastroenterologist", pitch: "The 42-year debate tradition: every lecture followed by real argument between surgeons, gastroenterologists, and pathologists." },
-  { title: "Anti-reflux options compared", pitch: "Fundoplication, LINX, TIF, and RefluxStop: what the evidence supports and who should get what." },
-  { title: "Barrett's in 2027", pitch: "Surveillance, dysplasia markers, and when to intervene." },
-  { title: "Achalasia subtype drives treatment", pitch: "How subtype and stage change the plan, including the sigmoid esophagus." },
-  { title: "Small classroom, not a ballroom", pitch: "Why a small-group format beats a 3,000-seat meeting for actually changing practice." },
-  { title: "Hotel block fills first", pitch: "Registration is open and the discounted room block goes fast. Practical urgency for planners." },
-  { title: "Mornings in class, afternoons on Kaua'i", pitch: "The schedule that makes a week of CME possible with family along." },
+  { title: "A surgeon and a GI trade places", pitch: "John Pandolfino, a gastroenterologist, explains how he would manage GERD as a surgeon, and Steve DeMeester, a surgeon, explains how he would manage it as a gastroenterologist." },
+  { title: "Should Barrett's be redefined?", pitch: "Srinadh Komanduri asks whether the definition of Barrett's esophagus should change, and Hashem El-Serag covers the natural history of short-segment disease." },
+  { title: "Screening without a scope", pitch: "Rebecca Fitzgerald, who developed the capsule sponge, on who to screen for Barrett's and the promise and limits of non-endoscopic options." },
+  { title: "What the BOSS trial means", pitch: "Oliver Old, chief investigator of BOSS, the first randomized trial of Barrett's surveillance, on what it means for how we watch patients." },
+  { title: "Dutch and US approaches, side by side", pitch: "Roos Pouw and Felice Schnoll-Sussman present the Dutch and US strategies for high-grade dysplasia and T1 adenocarcinoma, then take questions together." },
+  { title: "When endoscopic therapy fails", pitch: "Richard van Hillegersberg and Daniela Molena on surgery after failed endotherapy, with Dutch data and the Memorial Sloan Kettering experience." },
+  { title: "Getting more from HRM and FLIP", pitch: "John Pandolfino, a pioneer of high-resolution manometry and FLIP, on getting the most out of both tests." },
+  { title: "Every talk gets a debate", pitch: "Each lecture is followed by time set aside for discussion, a format the course has kept for more than 40 years." },
+  { title: "Mornings in class, afternoons on Kaua'i", pitch: "Sessions end by early afternoon and Sunday is a free day, so the week works with family along." },
+  { title: "Hotel block fills first", pitch: "Registration is open and the discounted hotel block fills quickly. Practical urgency for planners." },
 ];
 
 const SIZES = {
