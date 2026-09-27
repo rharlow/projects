@@ -28,11 +28,16 @@ The screen follows the order the work happens in, with plain labels, for course 
 3. **Make the picture.** The picture sits on the left and stays in view; the tools sit on the right. Choose a shape (Square for all three platforms, Tall for the Instagram feed, Wide for link previews, or Story), then use the Photo, Text, and Look tabs. Drag the photo in the picture to reposition it. The Foundation logo is already in place. **Download picture** is at the top of the step.
 4. **Preview the posts.** An approximation of each post in the LinkedIn, Facebook, and Instagram feeds, using the current wording and picture. Text is cut where each feed cuts it, so you can check the first lines carry the post.
 
-Work saves automatically, and saved posts are listed on the left. **Course facts** in the top bar opens the facts every post is written from.
+Work saves automatically. A green bar under the top bar confirms each save with the time, then slides away. If a save fails, the bar turns red, stays up, and the app tries again on its own. Saved posts are listed on the left with the date and time each was created and last updated.
+
+The gear at the top right opens the two settings pages:
+
+- **Course facts**, the facts every post is written from.
+- **Logo image**, where you upload the logo placed on every picture and see it on a shaded photo and on its own. The upload is stored on this computer, so it applies to every post and every browser. Until you upload one, the app uses the Foundation's white logo file.
 
 ## Course facts
 
-`data/brief.default.json` holds the facts Claude is allowed to use: course name, dates, venue, directors, audience, reasons to attend, addresses, voice, and hashtags. Edit them under **Course facts** in the top bar; your edits go to `data/brief.json` (gitignored). Changing a web address updates the links in the post you have open. If you saved Course facts before a new field was added, such as the course page address, the app fills it in from the defaults. Paste past posts into the "Past posts" field so new copy matches the established voice.
+`data/brief.default.json` holds the facts Claude is allowed to use: course name, dates, venue, directors, audience, reasons to attend, addresses, voice, and hashtags. Edit them under the gear, in **Course facts**; your edits go to `data/brief.json` (gitignored). Changing a web address updates the links in the post you have open. If you saved Course facts before a new field was added, such as the course page address, the app fills it in from the defaults. Paste past posts into the "Past posts" field so new copy matches the established voice.
 
 Claude is instructed to use only facts in the brief and the angle. It will not invent faculty, talks, or statistics. That makes the brief the ceiling on accuracy: a topic missing from it cannot appear in a post, and a topic in it that is not on the 2027 program can.
 
@@ -47,7 +52,7 @@ Claude is instructed to use only facts in the brief and the angle. It will not i
 
 ## Where files go
 
-Everything is local and gitignored: `data/images/` (your uploaded photos), `data/posts/` (saved posts as JSON), `data/brief.json` (your edited course facts). Downloaded pictures go to your browser's Downloads folder.
+Everything is local and gitignored: `data/images/` (your uploaded photos), `data/posts/` (saved posts as JSON), `data/brief.json` (your edited course facts), and `data/logo.*` with `data/logo.json` (your uploaded logo). Downloaded pictures go to your browser's Downloads folder.
 
 ## Layout
 
@@ -55,4 +60,4 @@ Everything is local and gitignored: `data/images/` (your uploaded photos), `data
 - `lib/claude.js` Claude prompts and structured output schemas
 - `lib/env.js` loads `.env` ahead of everything else
 - `check.js` the plain-English setup checker behind `npm run check`
-- `public/` the single-page interface, picture composer, favicon, and the default logo (`logo-default.png`)
+- `public/` the single-page interface, picture composer, favicon, and the built-in logo (`logo-default.png`)

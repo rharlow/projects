@@ -16,12 +16,22 @@
     <span><strong>Hawaii Course</strong> social posts</span>
   </div>
   <div class="topbar-actions">
-    <span id="save-state" class="save-state" aria-live="polite"></span>
-    <button id="btn-facts" type="button" class="ghost">Course facts</button>
     <button id="btn-new" type="button" class="ghost">Start a new post</button>
+    <div class="gear-wrap">
+      <button id="btn-gear" type="button" class="gear" aria-label="Settings" aria-haspopup="menu" aria-expanded="false" title="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z"/></svg>
+      </button>
+      <div id="gear-menu" class="gear-menu hidden" role="menu">
+        <a role="menuitem" href="#/settings/facts">Course facts</a>
+        <a role="menuitem" href="#/settings/logo">Logo image</a>
+      </div>
+    </div>
   </div>
 </header>
 
+<div id="notice" class="notice" role="status" aria-live="polite"><span class="notice-mark" aria-hidden="true"></span><span id="notice-text"></span></div>
+
+<div id="app-view">
 <div id="banner" class="banner hidden" role="status"></div>
 
 <div class="layout">
@@ -253,21 +263,44 @@
   </main>
 </div>
 
-<dialog id="facts-dialog" class="facts">
-  <form method="dialog" id="facts-form-wrap">
-    <header>
+</div><!-- /app-view -->
+
+<div id="settings-view" class="hidden">
+  <div class="settings-layout">
+    <nav class="settings-nav" aria-label="Settings">
+      <a href="#" class="back">Back to posts</a>
+      <h2>Settings</h2>
+      <a href="#/settings/facts" data-page="facts" class="nav-item">Course facts</a>
+      <a href="#/settings/logo" data-page="logo" class="nav-item">Logo image</a>
+    </nav>
+
+    <section class="panel settings-page" data-page="facts">
       <h2>Course facts</h2>
-      <p>Every post is written from these facts, and the writer will not add anything that is not here. Change them only when course details change.</p>
-    </header>
-    <div id="facts-form" class="facts-form"></div>
-    <footer>
-      <button id="facts-reset" type="button" class="link-btn danger">Restore the original facts</button>
-      <span class="spacer"></span>
-      <button value="cancel" class="ghost">Cancel</button>
-      <button id="facts-save" type="button" class="primary">Save changes</button>
-    </footer>
-  </form>
-</dialog>
+      <p class="hint">Every post is written from these facts, and the writer will not add anything that is not here. Change them only when course details change.</p>
+      <div id="facts-form" class="facts-form"></div>
+      <div class="settings-actions">
+        <button id="facts-save" type="button" class="primary big">Save changes</button>
+        <a href="#" class="ghost-link">Cancel</a>
+        <span class="spacer"></span>
+        <button id="facts-reset" type="button" class="link-btn danger">Restore the original facts</button>
+      </div>
+    </section>
+
+    <section class="panel settings-page" data-page="logo">
+      <h2>Logo image</h2>
+      <p class="hint">This logo goes on every picture you make in step 3. A PNG with a transparent background works best. Since the logo sits over a photo, a white or light version usually reads most clearly.</p>
+      <div class="logo-previews">
+        <figure><div class="logo-box on-photo"><img id="logo-on-photo" alt="Logo on a shaded photo"></div><figcaption>How it sits on a picture</figcaption></figure>
+        <figure><div class="logo-box on-check"><img id="logo-on-check" alt="Logo on its own"></div><figcaption>The file on its own. The checkerboard shows through any transparent areas.</figcaption></figure>
+      </div>
+      <p id="logo-source" class="hint"></p>
+      <div class="settings-actions">
+        <label class="file-btn">Upload a logo <input id="logo-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        <button id="logo-reset" type="button" class="link-btn hidden">Go back to the built-in logo</button>
+      </div>
+    </section>
+  </div>
+</div>
 
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 <script src="app.js"></script>

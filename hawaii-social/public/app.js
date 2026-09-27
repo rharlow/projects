@@ -66,7 +66,17 @@ const state = {
 // every later one and a post is never duplicated.
 let saveTimer = null, inFlight = Promise.resolve(), dirty = false, quiet = false;
 const hasContent = () => Boolean(state.angle.trim() || state.imageUrl || PLATFORMS.some((p) => state.copy[p].text));
-function setSaveState(msg, isError = false) { const s = $("#save-state"); s.textContent = msg; s.classList.toggle("error", isError); }
+// The bar under the top bar confirms saves. It stays put and updates in place while
+// saves keep coming, then slides away a few seconds after the last one.
+let noticeTimer = null;
+function notify(msg, { error = false, sticky = false } = {}) {
+  const n = $("#notice");
+  $("#notice-text").textContent = msg;
+  n.classList.toggle("error", error); n.classList.add("show");
+  clearTimeout(noticeTimer);
+  if (!sticky) noticeTimer = setTimeout(() => n.classList.remove("show"), 3200);
+}
+const clock = (d = new Date()) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 function markDirty() {
   if (quiet || !hasContent()) return;
   dirty = true; clearTimeout(saveTimer);
@@ -75,14 +85,16 @@ function markDirty() {
 function save() { inFlight = inFlight.then(doSave); return inFlight; }
 async function doSave() {
   if (!dirty) return;
-  dirty = false; setSaveState("Saving…");
+  dirty = false;
   try {
     const p = await api("/api/posts", { method: "POST", body: JSON.stringify(collectPost()) });
     state.id = p.id; state.createdAt = p.createdAt;
-    setSaveState("All changes saved");
+    notify(`Changes saved at ${clock()}`);
     refreshLibrary();
   } catch {
-    dirty = true; setSaveState("Could not save. Your work is still on screen.", true);
+    dirty = true;
+    notify("Your changes could not be saved. Your work is still on screen, and the app will try again in a few seconds.", { error: true, sticky: true });
+    clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = null; save(); }, 5000);
   }
 }
 async function flush() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; } await save(); }
@@ -150,18 +162,73 @@ async function applyNewBrief(next) {
   relink(before, allLinks(state.linkTarget, state.brief));
   showPlatform(state.platform); markDirty();
 }
-$("#btn-facts").onclick = () => { renderFacts(); $("#facts-dialog").showModal(); };
+let factsDirty = false;
+$("#facts-form").addEventListener("input", () => { factsDirty = true; });
 $("#facts-save").onclick = async () => {
   try {
     await applyNewBrief(await api("/api/brief", { method: "PUT", body: JSON.stringify(readFacts()) }));
-    $("#facts-dialog").close(); toast("Course facts saved. New posts will use them.");
-  } catch (e) { toast(e.message, true); }
+    factsDirty = false; notify("Course facts saved. New posts will use them.");
+  } catch (e) { notify(`Course facts were not saved. ${e.message}`, { error: true, sticky: true }); }
 };
 $("#facts-reset").onclick = async () => {
   if (!confirm("Replace all the course facts with the original versions? Your changes to them will be lost.")) return;
-  try { await applyNewBrief(await api("/api/brief/reset", { method: "POST" })); renderFacts(); toast("Original course facts restored."); }
-  catch (e) { toast(e.message, true); }
+  try { await applyNewBrief(await api("/api/brief/reset", { method: "POST" })); renderFacts(); factsDirty = false; notify("Original course facts restored."); }
+  catch (e) { notify(`Course facts were not restored. ${e.message}`, { error: true, sticky: true }); }
 };
+
+/* ---------- Logo ---------- */
+async function applyLogo(info) {
+  state.logoInfo = info;
+  try { state.logo = await loadImage(info.url); } catch { state.logo = null; }
+  $("#logo-on-photo").src = info.url; $("#logo-on-check").src = info.url;
+  $("#logo-source").textContent = info.custom
+    ? `In use: ${info.name || "your uploaded logo"}, uploaded ${new Date(info.uploadedAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.`
+    : "In use: the built-in Foundation logo. Upload the correct file to replace it.";
+  show("#logo-reset", Boolean(info.custom));
+  render();
+}
+$("#logo-file").onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  if (!/^image\/(png|jpeg|webp)$/.test(f.type)) return notify("That file is not a PNG, JPEG, or WebP image.", { error: true, sticky: true });
+  const fd = new FormData(); fd.append("logo", f);
+  try {
+    await applyLogo(await api("/api/logo", { method: "POST", body: fd }));
+    const small = state.logo && state.logo.naturalWidth < 600;
+    notify(small ? "Logo saved. It is small, so it may look soft. A version at least 800 pixels wide will be sharper." : "Logo saved. Every picture now uses it.");
+  } catch (err) { notify(`The logo was not saved. ${err.message}`, { error: true, sticky: true }); }
+};
+$("#logo-reset").onclick = async () => {
+  if (!confirm("Stop using your uploaded logo and go back to the built-in one?")) return;
+  try { await applyLogo(await api("/api/logo", { method: "DELETE" })); notify("Back to the built-in logo."); }
+  catch (err) { notify(err.message, { error: true, sticky: true }); }
+};
+
+/* ---------- Gear menu and settings pages ---------- */
+const gear = $("#btn-gear"), gearMenu = $("#gear-menu");
+function setGear(open) { gearMenu.classList.toggle("hidden", !open); gear.setAttribute("aria-expanded", open); }
+gear.onclick = (e) => { e.stopPropagation(); setGear(gearMenu.classList.contains("hidden")); };
+document.addEventListener("click", (e) => { if (!e.target.closest(".gear-wrap")) setGear(false); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") setGear(false); });
+gearMenu.addEventListener("click", () => setGear(false));
+
+let lastRoute = "";
+function route() {
+  const m = location.hash.match(/^#\/settings\/(facts|logo)$/);
+  if (lastRoute === "facts" && (!m || m[1] !== "facts") && factsDirty) {
+    if (!confirm("You have unsaved changes to the course facts. Leave without saving them?")) { history.replaceState(null, "", "#/settings/facts"); return; }
+    factsDirty = false;
+  }
+  const page = m ? m[1] : "";
+  show("#app-view", !page); show("#settings-view", Boolean(page));
+  if (page) {
+    $$(".settings-page").forEach((p) => p.classList.toggle("hidden", p.dataset.page !== page));
+    $$(".settings-nav .nav-item").forEach((a) => a.classList.toggle("current", a.dataset.page === page));
+    if (page === "facts" && lastRoute !== "facts") { renderFacts(); factsDirty = false; }
+    window.scrollTo(0, 0);
+  }
+  lastRoute = page;
+}
+window.addEventListener("hashchange", route);
 
 /* ---------- Step 1: topic ---------- */
 function renderAngles(list) {
@@ -564,7 +631,7 @@ async function loadPost(p) {
   if (p.imageUrl) await useImage(p.imageUrl, p.imageSource, { keepFocus: true });
   showPlatform("linkedin"); render();
   quiet = false;
-  setSaveState("All changes saved"); highlightCurrent();
+  highlightCurrent();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 async function newPost() {
@@ -586,16 +653,17 @@ function resetToBlank() {
   show("#drag-hint", false); $("#canvas").classList.remove("draggable");
   syncLookInputs(); showPlatform("linkedin"); render();
   quiet = false;
-  setSaveState(""); highlightCurrent();
+  highlightCurrent();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 $("#btn-new").onclick = newPost;
 
-function savedWhen(iso) {
+function stamp(iso) {
   if (!iso) return "";
-  const d = new Date(iso), now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  return sameDay ? `Today at ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}` : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const d = new Date(iso);
+  const opts = { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+  return d.toLocaleString(undefined, opts);
 }
 function highlightCurrent() { $$("#library li[data-id]").forEach((li) => li.classList.toggle("current", li.dataset.id === state.id)); }
 async function refreshLibrary() {
@@ -604,7 +672,11 @@ async function refreshLibrary() {
   for (const p of posts) {
     const li = document.createElement("li"); li.dataset.id = p.id;
     const done = PLATFORMS.filter((k) => p.copied?.[k]).length;
-    li.innerHTML = `<span><span class="title">${escapeHtml(p.title || "Untitled post")}</span><span class="meta">${savedWhen(p.updatedAt)}${done ? ` · copied ${done} of 3` : ""}</span></span><button type="button" class="del" title="Delete this post" aria-label="Delete this post">×</button>`;
+    li.innerHTML = `<span><span class="title">${escapeHtml(p.title || "Untitled post")}</span>`
+      + `<span class="meta"><b>Created</b> ${stamp(p.createdAt || p.updatedAt)}</span>`
+      + `<span class="meta"><b>Updated</b> ${stamp(p.updatedAt)}</span>`
+      + (done ? `<span class="meta">Copied ${done} of 3</span>` : "")
+      + `</span><button type="button" class="del" title="Delete this post" aria-label="Delete this post">×</button>`;
     li.onclick = (e) => { if (!e.target.classList.contains("del") && p.id !== state.id) loadPost(p); };
     li.querySelector(".del").onclick = async (e) => {
       e.stopPropagation();
@@ -629,9 +701,10 @@ const defaultFooter = () => state.brief?.brand?.footer || "foregutdiseasefoundat
     else if (!st.claude) { $("#banner").textContent = "The writing assistant is not connected, so Write the posts will not work yet. In Terminal, run npm run check to see why."; show("#banner", true); }
     state.brief = await api("/api/brief");
     renderAngles(STARTER_ANGLES);
-    try { state.logo = await loadImage("logo-default.png"); } catch {}
+    await applyLogo(await api("/api/logo"));
     state.overlay.footer = defaultFooter();
     syncLookInputs(); showPlatform("linkedin"); render();
     await refreshGallery(); await refreshLibrary();
+    route();
   } catch (e) { toast(e.message, true); }
 })();

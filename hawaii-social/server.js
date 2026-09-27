@@ -105,6 +105,37 @@ app.delete("/api/images/:name", wrap(async (req, res) => {
 }));
 
 
+// The logo placed on every picture. A staff upload lives in data/ and replaces
+// the built-in file until someone goes back to it.
+const LOGO_META = path.join(DATA, "logo.json");
+async function logoInfo() {
+  try {
+    const meta = JSON.parse(await fs.readFile(LOGO_META, "utf8"));
+    await fs.access(path.join(DATA, meta.file));
+    return { custom: true, url: `/api/logo/file?v=${encodeURIComponent(meta.uploadedAt)}`, uploadedAt: meta.uploadedAt, name: meta.name };
+  } catch {
+    return { custom: false, url: "/logo-default.png" };
+  }
+}
+async function removeLogoFiles() {
+  for (const f of await fs.readdir(DATA)) if (/^logo\.(png|jpg|webp)$/.test(f)) await fs.rm(path.join(DATA, f), { force: true });
+  await fs.rm(LOGO_META, { force: true });
+}
+app.get("/api/logo", wrap(async (_req, res) => res.json(await logoInfo())));
+app.get("/api/logo/file", wrap(async (_req, res) => {
+  const meta = JSON.parse(await fs.readFile(LOGO_META, "utf8"));
+  res.set("Cache-Control", "no-store").sendFile(path.join(DATA, path.basename(meta.file)));
+}));
+app.post("/api/logo", upload.single("logo"), wrap(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "Choose a PNG, JPEG, or WebP image for the logo." });
+  await removeLogoFiles();
+  const file = `logo.${EXT[req.file.mimetype] || "png"}`;
+  await fs.writeFile(path.join(DATA, file), req.file.buffer);
+  await fs.writeFile(LOGO_META, JSON.stringify({ file, name: req.file.originalname, uploadedAt: new Date().toISOString() }, null, 2));
+  res.json(await logoInfo());
+}));
+app.delete("/api/logo", wrap(async (_req, res) => { await removeLogoFiles(); res.json(await logoInfo()); }));
+
 app.get("/api/images", wrap(async (_req, res) => {
   const files = (await fs.readdir(IMAGES)).filter((f) => /\.(png|jpe?g|webp)$/i.test(f));
   const stats = await Promise.all(files.map(async (f) => ({ url: `/images/${f}`, mtime: (await fs.stat(path.join(IMAGES, f))).mtimeMs })));
