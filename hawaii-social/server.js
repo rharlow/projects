@@ -108,10 +108,34 @@ const upload = multer({
 });
 
 const id = () => `${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
+// Errors from Anthropic carry Anthropic's status codes. Passing a 401 through
+// would read as "your session expired" and bounce staff to the sign-in page,
+// so upstream failures become a 502 with a message a person can act on.
+function explain(err) {
+  const s = err?.status;
+  if (err?.constructor?.name === "AuthenticationError" || (s === 401 && /api[-_ ]?key|authentication/i.test(err.message || "")))
+    return "Anthropic rejected the API key, so nothing could be written. Whoever manages the app should check ANTHROPIC_API_KEY.";
+  if (s === 400 && /credit|balance/i.test(err.message || "")) return "The Anthropic account is out of credit. Add credit at console.anthropic.com, then try again.";
+  if (s === 429) return "The writing assistant is busy. Wait a minute and try again.";
+  if (s === 529 || s >= 500) return "The writing assistant is having trouble right now. Try again in a few minutes.";
+  return err?.message || String(err);
+}
 const wrap = (fn) => (req, res) => fn(req, res).catch((err) => {
   console.error(err);
-  res.status(err.status || 500).json({ error: err.message || String(err) });
+  const own = err?.status && err.status < 500 && !err?.headers; // our own validation errors
+  res.status(own ? err.status : err?.status ? 502 : 500).json({ error: explain(err) });
 });
+
+// What is wrong with the API key, if anything, without ever revealing it.
+function keyProblem() {
+  const raw = process.env.ANTHROPIC_API_KEY || "";
+  if (!raw.trim() && !process.env.ANTHROPIC_AUTH_TOKEN) return "missing";
+  if (!raw.trim()) return null;
+  if (/^\s*["']|["']\s*$/.test(raw)) return "quoted";
+  if (/\s/.test(raw.trim())) return "spaces";
+  if (!raw.trim().startsWith("sk-ant-")) return "shape";
+  return null;
+}
 
 // A saved copy of the facts wins, but fields added to the defaults since it was
 // saved (a new page address, say) still come through.
@@ -129,6 +153,8 @@ app.get("/api/status", wrap(async (_req, res) => {
     claude: Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN),
     claudeModel: process.env.CLAUDE_MODEL || "claude-opus-5",
     mock: process.env.MOCK_AI === "1",
+    hosted: HOSTED,
+    keyProblem: keyProblem(),
   });
 }));
 

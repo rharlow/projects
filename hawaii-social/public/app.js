@@ -694,12 +694,26 @@ async function refreshLibrary() {
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 const defaultFooter = () => state.brief?.brand?.footer || "foregutdiseasefoundation.org";
 
+// Plain-language help for a missing or malformed API key, pointed at where it is set.
+function keyAdvice({ keyProblem, hosted }) {
+  const where = hosted
+    ? "For whoever manages the app: in Railway, open this service's Variables, fix ANTHROPIC_API_KEY, then press Deploy so the change takes effect."
+    : "In Terminal, run npm run check to see exactly what to fix.";
+  const what = {
+    missing: "The writing assistant is not connected yet, because this app has no Anthropic API key.",
+    quoted: "The writing assistant is not connected, because the Anthropic API key has quote marks around it.",
+    spaces: "The writing assistant is not connected, because the Anthropic API key has a space or line break inside it.",
+    shape: "The writing assistant is not connected, because the Anthropic API key does not look right. Anthropic keys start with sk-ant-.",
+  }[keyProblem] || "The writing assistant is not connected.";
+  return `${what} ${where}`;
+}
+
 /* ---------- Start ---------- */
 (async function init() {
   try {
     const st = await api("/api/status");
     if (st.mock) { $("#banner").textContent = "Practice mode. The posts you get are sample text, not real writing."; show("#banner", true); }
-    else if (!st.claude) { $("#banner").textContent = "The writing assistant is not connected, so Write the posts will not work yet. In Terminal, run npm run check to see why."; show("#banner", true); }
+    else if (st.keyProblem) { $("#banner").textContent = keyAdvice(st); show("#banner", true); }
     state.brief = await api("/api/brief");
     renderAngles(STARTER_ANGLES);
     await applyLogo(await api("/api/logo"));
