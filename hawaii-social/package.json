@@ -9,7 +9,9 @@
     "dev": "node --watch server.js",
     "check": "node check.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20 <23"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
     "dotenv": "^16.4.5",

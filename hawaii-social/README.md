@@ -35,9 +35,22 @@ The gear at the top right opens the two settings pages:
 - **Course facts**, the facts every post is written from.
 - **Logo image**, where you upload the logo placed on every picture and see it on a shaded photo and on its own. The upload is stored on this computer, so it applies to every post and every browser. Until you upload one, the app uses the Foundation's white logo file.
 
+## Putting it online with Railway
+
+The app runs on Railway as it does on your computer, with two additions: a disk so posts and photos survive updates, and one team password.
+
+1. **Source.** In the service's Settings, set **Root Directory** to `/hawaii-social` and the branch to the one holding the app.
+2. **Disk.** Add a volume to the service with the mount path `/data`.
+3. **Variables.** Add `ANTHROPIC_API_KEY`, `TEAM_PASSWORD`, and `DATA_DIR` set to `/data`.
+4. **Address.** Under Networking, press **Generate Domain** and share that address and the password with the team.
+
+Until `TEAM_PASSWORD` is set, the hosted app shows a page asking for it rather than running open. `/healthz` answers without a password, for Railway's health check. Photos, the logo, and edited course facts from your computer do not move across on their own; add them again through the app.
+
+Staff stay signed in for 30 days. Changing `TEAM_PASSWORD` signs everyone out. `/logout` signs out one browser.
+
 ## Course facts
 
-`data/brief.default.json` holds the facts Claude is allowed to use: course name, dates, venue, directors, audience, reasons to attend, addresses, voice, and hashtags. Edit them under the gear, in **Course facts**; your edits go to `data/brief.json` (gitignored). Changing a web address updates the links in the post you have open. If you saved Course facts before a new field was added, such as the course page address, the app fills it in from the defaults. Paste past posts into the "Past posts" field so new copy matches the established voice.
+`config/brief.default.json` holds the facts Claude is allowed to use: course name, dates, venue, directors, audience, reasons to attend, addresses, voice, and hashtags. Edit them under the gear, in **Course facts**; your edits go to `data/brief.json` (gitignored). Changing a web address updates the links in the post you have open. If you saved Course facts before a new field was added, such as the course page address, the app fills it in from the defaults. Paste past posts into the "Past posts" field so new copy matches the established voice.
 
 Claude is instructed to use only facts in the brief and the angle. It will not invent faculty, talks, or statistics. That makes the brief the ceiling on accuracy: a topic missing from it cannot appear in a post, and a topic in it that is not on the 2027 program can.
 
@@ -56,7 +69,8 @@ Everything is local and gitignored: `data/images/` (your uploaded photos), `data
 
 ## Layout
 
-- `server.js` Express API and static hosting
+- `server.js` Express API, static hosting, and the team password
+- `config/brief.default.json` the default course facts
 - `lib/claude.js` Claude prompts and structured output schemas
 - `lib/env.js` loads `.env` ahead of everything else
 - `check.js` the plain-English setup checker behind `npm run check`

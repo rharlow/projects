@@ -8,15 +8,95 @@ import { fileURLToPath } from "node:url";
 import { generatePostPackage, rewriteCopy, suggestAngles } from "./lib/claude.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const DATA = path.join(here, "data");
+// DATA_DIR points at the host's persistent disk. Locally it defaults to ./data.
+const DATA = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(here, "data");
 const IMAGES = path.join(DATA, "images");
 const POSTS = path.join(DATA, "posts");
 const BRIEF = path.join(DATA, "brief.json");
-const BRIEF_DEFAULT = path.join(DATA, "brief.default.json");
+// The default facts ship with the code, outside the data folder, so mounting a
+// disk over the data folder cannot hide them.
+const BRIEF_DEFAULT = path.join(here, "config", "brief.default.json");
 
 for (const d of [IMAGES, POSTS]) await fs.mkdir(d, { recursive: true });
 
+/* ---------- Team password ----------
+   One shared password for the course staff. Signing in sets a cookie that lasts
+   30 days. The cookie is derived from the password, so changing TEAM_PASSWORD
+   signs everyone out. With no password set, the app is open, which is fine on
+   your own computer. On a hosting service it refuses to run open. */
+const TEAM_PASSWORD = process.env.TEAM_PASSWORD || "";
+const HOSTED = Boolean(process.env.RAILWAY_PROJECT_ID || process.env.RAILWAY_ENVIRONMENT_NAME || process.env.RAILWAY_ENVIRONMENT || process.env.REQUIRE_PASSWORD === "1");
+const COOKIE = "hs_session";
+const sessionToken = () => crypto.createHmac("sha256", TEAM_PASSWORD).update("hawaii-social-session-v1").digest("hex");
+const sameSecret = (a, b) => {
+  const ha = crypto.createHash("sha256").update(String(a)).digest();
+  const hb = crypto.createHash("sha256").update(String(b)).digest();
+  return crypto.timingSafeEqual(ha, hb);
+};
+const readCookie = (req, name) => {
+  for (const part of (req.headers.cookie || "").split(";")) {
+    const [k, ...v] = part.trim().split("=");
+    if (k === name) return decodeURIComponent(v.join("="));
+  }
+  return "";
+};
+const PUBLIC_PATHS = new Set(["/login", "/favicon.ico", "/favicon-32.png", "/apple-touch-icon.png"]);
+
+function page(title, body) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title><link rel="icon" href="/favicon.ico" sizes="any">
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 16px/1.5 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; background: #f4f6f8; color: #15212c; }
+  @media (prefers-color-scheme: dark) { body { background: #0f1418; color: #e8edf1; } .card { background: #172027 !important; border-color: #2c3740 !important; } input { background: #0f1418 !important; color: #e8edf1 !important; border-color: #2c3740 !important; } }
+  .card { width: min(380px, 90vw); background: #fff; border: 1px solid #d9e0e6; border-radius: 12px; padding: 28px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 17px; }
+  label { display: block; font-weight: 600; margin: 0 0 6px; }
+  input { width: 100%; box-sizing: border-box; font: inherit; padding: 10px 12px; border: 1px solid #d9e0e6; border-radius: 8px; }
+  button { margin-top: 16px; width: 100%; font: inherit; font-weight: 600; padding: 11px; border: 0; border-radius: 8px; background: #0f6f8f; color: #fff; cursor: pointer; }
+  .err { color: #b3261e; margin: 10px 0 0; font-size: 15px; }
+  p { margin: 0 0 12px; }
+</style></head><body><main class="card"><div class="brand"><img src="/favicon-32.png" alt="" width="28" height="28"><span><strong>Hawaii Course</strong> social posts</span></div>${body}</main></body></html>`;
+}
+
+function teamPassword() {
+  return async (req, res, next) => {
+    if (!TEAM_PASSWORD) {
+      if (!HOSTED) return next();
+      return res.status(503).send(page("Needs a password", "<p>This app needs a team password before anyone can use it online.</p><p>In Railway, open this service's Variables and add one named <strong>TEAM_PASSWORD</strong>. The app restarts on its own.</p>"));
+    }
+    if (req.path === "/logout") {
+      res.setHeader("Set-Cookie", `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
+      return res.redirect("/login");
+    }
+    if (req.path === "/login" && req.method === "POST") {
+      const body = await new Promise((resolve) => { let d = ""; req.on("data", (c) => { d += c; if (d.length > 4096) req.destroy(); }); req.on("end", () => resolve(d)); });
+      const given = new URLSearchParams(body).get("password") || "";
+      if (!sameSecret(given, TEAM_PASSWORD)) {
+        await new Promise((r) => setTimeout(r, 1000)); // slows down guessing
+        return res.status(401).send(page("Sign in", loginForm("That password is not right. Check with the course team and try again.")));
+      }
+      const secure = req.secure ? "; Secure" : "";
+      res.setHeader("Set-Cookie", `${COOKIE}=${sessionToken()}; Path=/; Max-Age=${60 * 60 * 24 * 30}; HttpOnly; SameSite=Lax${secure}`);
+      return res.redirect("/");
+    }
+    const signedIn = sameSecret(readCookie(req, COOKIE), sessionToken());
+    if (req.path === "/login") return signedIn ? res.redirect("/") : res.send(page("Sign in", loginForm()));
+    if (signedIn || PUBLIC_PATHS.has(req.path)) return next();
+    if (req.path.startsWith("/api/")) return res.status(401).json({ error: "Please sign in again." });
+    return res.redirect("/login");
+  };
+}
+const loginForm = (error = "") => `<form method="post" action="/login">
+  <label for="pw">Team password</label>
+  <input id="pw" name="password" type="password" autocomplete="current-password" autofocus required>
+  ${error ? `<p class="err" role="alert">${error}</p>` : ""}
+  <button type="submit">Sign in</button></form>`;
+
 const app = express();
+app.set("trust proxy", 1);
+app.get("/healthz", (_req, res) => res.type("text").send("ok"));
+app.use(teamPassword());
 app.use(express.json({ limit: "25mb" }));
 app.use(express.static(path.join(here, "public")));
 app.use("/images", express.static(IMAGES));
