@@ -49,14 +49,14 @@ const SIZES = {
 
 // The standard look. "Put everything back" restores these and leaves the words and photo alone.
 const STANDARD_LOOK = { layout: "gradient", accent: "#0f6f8f", text: "#ffffff", scale: 100, topScrim: 45, bottomScrim: 82, shade: "#000000", showLogo: true, logoScale: 30, logoPos: "tr" };
-const freshOverlay = () => ({ headline: "", subline: "", footer: "", fx: 50, fy: 50, size: "square", ...STANDARD_LOOK });
+const freshOverlay = () => ({ headline: "", subline: "", line3: "", footer: "", fx: 50, fy: 50, size: "square", ...STANDARD_LOOK });
 const blankCopy = () => ({ text: "", altText: "" });
 const blankCopies = () => ({ linkedin: blankCopy(), facebook: blankCopy(), instagram: blankCopy() });
 
 const state = {
   id: null, createdAt: null, brief: null,
-  angle: "", notes: "", angleTitle: "", length: "good", step: 1, downloaded: false,
-  platform: "linkedin", linkTarget: "home",
+  angle: "", angleTitle: "", length: "good", step: 1, furthest: 1, downloaded: false, completed: false,
+  platform: "linkedin", linkTarget: "course",
   copy: blankCopies(), copied: {},
   imageUrl: null, imageSource: null, img: null, logo: null,
   overlay: freshOverlay(),
@@ -255,6 +255,7 @@ function goTo(n) {
 function showStep(n) {
   const changed = n !== state.step || !$(`.main > .step[data-step="${n}"]`).classList.contains("shown");
   state.step = n;
+  if (n > state.furthest) { state.furthest = n; markDirty(); }
   $$(".main > .step").forEach((sec) => {
     const on = Number(sec.dataset.step) === n;
     if (on && changed) { sec.classList.remove("shown"); void sec.offsetWidth; } // restart the slide-in
@@ -274,9 +275,9 @@ function updateStepper() {
   const topic = state.angleTitle || state.angle.trim().split(/[.?!\n]/)[0];
   const status = {
     1: { done: has, sub: has ? topic : topic ? "Ready to write" : "Not started" },
-    2: { done: copied === 3, sub: !has ? "Waiting on step 1" : copied ? `Copied ${copied} of 3` : "Ready to review" },
-    3: { done: state.downloaded, sub: state.downloaded ? "Picture downloaded" : state.imageUrl ? "Photo chosen" : "No photo yet" },
-    4: { done: false, sub: has ? "Look it over" : "Waiting on step 1" },
+    2: { done: has && state.furthest > 2, sub: !has ? "Waiting on step 1" : copied ? `Copied ${copied} of 3` : state.furthest > 2 ? "Reviewed" : "Ready to review" },
+    3: { done: has && state.furthest > 3, sub: state.downloaded ? "Picture downloaded" : state.imageUrl ? "Photo chosen" : "No photo yet" },
+    4: { done: state.completed, sub: state.completed ? "Completed" : has ? "Look it over" : "Waiting on step 1" },
   };
   $$(".st").forEach((b) => {
     const n = Number(b.dataset.step), st = status[n];
@@ -313,22 +314,21 @@ $("#btn-angles").onclick = async () => {
   finally { btn.disabled = false; btn.textContent = "Suggest more topics"; }
 };
 $("#angle").oninput = (e) => { state.angle = e.target.value; updateStepper(); markDirty(); };
-$("#notes").oninput = (e) => { state.notes = e.target.value; markDirty(); };
 
 async function writePosts() {
-  state.angle = $("#angle").value.trim(); state.notes = $("#notes").value.trim();
+  state.angle = $("#angle").value.trim();
   if (!state.angle) { toast("Choose a topic or describe one first.", true); $("#angle").focus(); return; }
   const had = PLATFORMS.some((p) => state.copy[p].text);
   if (had && !confirm("Replace the posts you already have with newly written ones?")) return;
   show("#copy-busy", true); $("#btn-copy").disabled = true;
   try {
-    const pkg = await api("/api/copy", { method: "POST", body: JSON.stringify({ angle: state.angle, notes: state.notes, length: LENGTHS[state.length].chars }) });
+    const pkg = await api("/api/copy", { method: "POST", body: JSON.stringify({ angle: state.angle, length: LENGTHS[state.length].chars }) });
     for (const p of PLATFORMS) state.copy[p] = { text: composeText(pkg[p].body, pkg[p].hashtags, p), altText: pkg[p].altText };
     state.copied = {}; for (const k of PLATFORMS) expanded[k] = false;
     state.angleTitle = pkg.angleTitle;
-    state.overlay.headline = pkg.headline; state.overlay.subline = pkg.subline;
+    state.overlay.headline = pkg.headline; state.overlay.subline = pkg.subline; state.furthest = 1; state.completed = false;
     syncLookInputs(); showPlatform("linkedin"); render(); markDirty();
-    toast("Posts written. Read them over, then copy each one.");
+    toast("Posts written for LinkedIn, Facebook, and Instagram. Read each one over.");
     goTo(2);
   } catch (e) { toast(e.message, true); }
   finally { show("#copy-busy", false); $("#btn-copy").disabled = false; }
@@ -479,7 +479,7 @@ function showTool(name) {
 $$(".tool-tab").forEach((t) => (t.onclick = () => showTool(t.dataset.tool)));
 
 /* ---------- Step 3: the look ---------- */
-const LOOK_TEXT = ["headline", "subline", "footer", "layout", "accent", "text", "shade", "logoPos"];
+const LOOK_TEXT = ["headline", "subline", "line3", "footer", "layout", "accent", "text", "shade", "logoPos"];
 const LOOK_NUM = ["scale", "topScrim", "bottomScrim", "logoScale"];
 function syncLookInputs() {
   for (const k of [...LOOK_TEXT, ...LOOK_NUM]) $(`#ov-${k}`).value = state.overlay[k];
@@ -546,7 +546,8 @@ function renderTo(canvas, sizeKey) {
     if (headLines.length <= 3 || headSize <= base * 0.032) break;
     headSize *= 0.94;
   }
-  ctx.font = font(subSize, 400); const subLines = wrapLines(ctx, o.subline, maxTextW);
+  // The second and third lines share one style, so they read as a single block under the headline.
+  ctx.font = font(subSize, 400); const subLines = [...wrapLines(ctx, o.subline, maxTextW), ...wrapLines(ctx, o.line3, maxTextW)];
   const blockH = headLines.length * headSize * 1.1 + (subLines.length ? subSize * 0.6 + subLines.length * subSize * 1.3 : 0);
   const footH = o.footer ? footSize * 2.2 : 0;
 
@@ -662,8 +663,9 @@ function collectPost() {
   return {
     id: state.id, createdAt: state.createdAt,
     title: state.angleTitle || state.angle.trim().split(/[.?!\n]/)[0].slice(0, 60) || "Untitled post",
-    angle: state.angle, notes: state.notes, angleTitle: state.angleTitle, length: state.length,
+    angle: state.angle, angleTitle: state.angleTitle, length: state.length,
     copy: state.copy, copied: state.copied, linkTarget: state.linkTarget, downloaded: state.downloaded,
+    furthest: state.furthest, completed: state.completed,
     imageUrl: state.imageUrl, imageSource: state.imageSource, overlay: state.overlay,
   };
 }
@@ -681,13 +683,14 @@ async function loadPost(p) {
   await flush();
   quiet = true;
   state.id = p.id; state.createdAt = p.createdAt; state.angleTitle = p.angleTitle || p.title || "";
-  state.angle = p.angle || ""; state.notes = p.notes || "";
-  $("#angle").value = state.angle; $("#notes").value = state.notes;
+  state.angle = p.angle || ""; $("#angle").value = state.angle;
   $$(".chip").forEach((x) => x.classList.toggle("active", x.textContent === state.angleTitle));
   state.linkTarget = normalizeTarget(p.linkTarget);
   state.length = LENGTHS[p.length] ? p.length : "good"; syncLength();
   for (const k of PLATFORMS) expanded[k] = false;
   state.copy = migrateCopy(p); state.copied = p.copied || {}; state.downloaded = Boolean(p.downloaded);
+  state.completed = Boolean(p.completed);
+  state.furthest = p.completed ? 4 : Math.max(Number(p.furthest) || 1, PLATFORMS.some((k) => state.copy[k].text) ? 2 : 1);
   state.overlay = { ...freshOverlay(), footer: defaultFooter(), ...(p.overlay || {}) };
   syncLookInputs();
   state.img = null; state.imageUrl = null; show("#drag-hint", false); $("#canvas").classList.remove("draggable");
@@ -707,8 +710,9 @@ function resetToBlank() {
   quiet = true;
   state.id = null; state.createdAt = null; state.angleTitle = ""; state.length = "good"; syncLength();
   for (const k of PLATFORMS) expanded[k] = false;
-  state.angle = ""; state.notes = ""; $("#angle").value = ""; $("#notes").value = "";
-  state.copy = blankCopies(); state.copied = {}; state.linkTarget = "home"; state.downloaded = false;
+  state.angle = ""; $("#angle").value = "";
+  state.copy = blankCopies(); state.copied = {}; state.linkTarget = "course"; state.downloaded = false;
+  state.furthest = 1; state.completed = false;
   state.overlay = { ...freshOverlay(), footer: defaultFooter() };
   state.img = null; state.imageUrl = null; state.imageSource = null;
   $$(".chip").forEach((x) => x.classList.remove("active"));
@@ -720,7 +724,23 @@ function resetToBlank() {
   goTo(1);
 }
 $("#btn-new").onclick = newPost;
-$("#btn-finish").onclick = newPost;
+// Marks the post complete, points to it in Saved posts, and clears the screen for the next one.
+$("#btn-finish").onclick = async () => {
+  if (!PLATFORMS.some((k) => state.copy[k].text)) { toast("Write the posts in step 1 first.", true); return; }
+  state.completed = true; dirty = true;
+  await flush();
+  if (dirty) return; // the save failed; the red bar explains and the app retries
+  const id = state.id;
+  await refreshLibrary();
+  resetToBlank();
+  const li = $(`#library li[data-id="${id}"]`);
+  if (li) {
+    li.classList.remove("just-saved"); void li.offsetWidth; li.classList.add("just-saved");
+    li.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setTimeout(() => li.classList.remove("just-saved"), 2600);
+  }
+  toast("Post saved as completed. Ready for a new post.");
+};
 
 function stamp(iso) {
   if (!iso) return "";
@@ -730,8 +750,12 @@ function stamp(iso) {
   return d.toLocaleString(undefined, opts);
 }
 function highlightCurrent() { $$("#library li[data-id]").forEach((li) => li.classList.toggle("current", li.dataset.id === state.id)); }
+let librarySeq = 0;
 async function refreshLibrary() {
-  const { posts } = await api("/api/posts"); const ul = $("#library"); ul.innerHTML = "";
+  const seq = ++librarySeq;
+  const { posts } = await api("/api/posts");
+  if (seq !== librarySeq) return; // a newer refresh is on its way
+  const ul = $("#library"); ul.innerHTML = "";
   if (!posts.length) { ul.innerHTML = '<li class="empty">Nothing saved yet. Your first post will appear here as soon as you start it.</li>'; return; }
   for (const p of posts) {
     const li = document.createElement("li"); li.dataset.id = p.id;
@@ -740,6 +764,7 @@ async function refreshLibrary() {
       + `<span class="meta"><b>Created</b> ${stamp(p.createdAt || p.updatedAt)}</span>`
       + `<span class="meta"><b>Updated</b> ${stamp(p.updatedAt)}</span>`
       + (done ? `<span class="meta">Copied ${done} of 3</span>` : "")
+      + (p.completed ? `<span class="badge">Completed</span>` : "")
       + `</span><button type="button" class="del" title="Delete this post" aria-label="Delete this post">×</button>`;
     li.onclick = (e) => { if (!e.target.classList.contains("del") && p.id !== state.id) loadPost(p); };
     li.querySelector(".del").onclick = async (e) => {

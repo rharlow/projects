@@ -114,7 +114,7 @@ Write the post package.`;
   });
 
   if (response.stop_reason === "refusal") {
-    throw new Error("The model declined this request. Adjust the angle or notes and try again.");
+    throw new Error("The model declined this request. Adjust the topic and try again.");
   }
   if (!response.parsed_output) {
     throw new Error("Copy generation returned no structured output. Try again.");

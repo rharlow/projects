@@ -56,10 +56,8 @@
       <button id="btn-angles" type="button" class="link-btn">Suggest more topics</button>
 
       <label for="angle">What is this post about?</label>
+      <p class="hint label-hint">You can refine the topic here. Edit the wording of a topic you picked, or write your own.</p>
       <textarea id="angle" rows="3" placeholder="For example: why the surgeon versus gastroenterologist debate at this course is worth the trip."></textarea>
-
-      <label for="notes">Anything specific to include? <span class="optional">Optional</span></label>
-      <input id="notes" placeholder="For example: mention that the hotel block is filling up.">
 
       <label id="length-label">How long should the posts be?</label>
       <div class="lengths" role="radiogroup" aria-labelledby="length-label">
@@ -71,7 +69,7 @@
 
       <div class="actions">
         <button id="btn-copy" type="button" class="primary big">Write the posts</button>
-        <span id="copy-busy" class="busy hidden">Writing all three posts. This usually takes about 20 seconds.</span>
+        <span id="copy-busy" class="busy hidden">Writing three posts, one each for LinkedIn, Facebook, and Instagram. This usually takes about 20 seconds.</span>
       </div>
       <div class="step-nav">
         <span></span>
@@ -114,13 +112,15 @@
         <div class="copy-actions">
           <label class="inline" for="link-target">Link goes to
             <select id="link-target">
-              <option value="home">Home page</option>
               <option value="course">Course page</option>
+              <option value="home">Home page</option>
               <option value="registration">Registration page</option>
             </select>
           </label>
-          <button id="btn-copy-post" type="button" class="primary big">Copy LinkedIn post</button>
-          <button id="btn-copy-link" type="button" class="ghost hidden">Copy link for your Instagram bio</button>
+          <span class="copy-links">
+            <button id="btn-copy-link" type="button" class="link-btn hidden">Copy link for your Instagram bio</button>
+            <button id="btn-copy-post" type="button" class="link-btn">Copy LinkedIn post</button>
+          </span>
         </div>
 
         <div class="alt-box">
@@ -144,7 +144,7 @@
         <div><span class="eyebrow">Step 3 of 4</span><h2 tabindex="-1">Make the picture</h2></div>
         <span class="spacer"></span>
         <button id="btn-download-all" type="button" class="ghost">Download all four shapes</button>
-        <button id="btn-download" type="button" class="primary">Download picture</button>
+        <button id="btn-download" type="button" class="ghost">Download picture</button>
       </header>
 
       <div class="studio">
@@ -182,6 +182,8 @@
             <input id="ov-headline" maxlength="80">
             <label for="ov-subline">Second line</label>
             <input id="ov-subline" maxlength="110">
+            <label for="ov-line3">Third line</label>
+            <input id="ov-line3" maxlength="110">
             <label for="ov-footer">Website line</label>
             <input id="ov-footer">
             <div class="pair">
@@ -273,7 +275,7 @@
       </div>
       <div class="step-nav">
         <button type="button" class="ghost" data-go="3">Back</button>
-        <button type="button" class="primary big" id="btn-finish">Start a new post</button>
+        <button type="button" class="primary big" id="btn-finish">Save Completed Post</button>
       </div>
     </section>
   </main>

@@ -14,7 +14,7 @@ h2 { font-size: 20px; margin: 0; }
 h3 { font-size: 15px; margin: 0 0 8px; }
 .hidden { display: none !important; }
 .hint { font-size: 14px; color: var(--muted); margin: 4px 0 10px; }
-.optional { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 6px; }
+.label-hint { margin-top: -2px; }
 .center { text-align: center; }
 
 /* Top bar */
@@ -137,6 +137,7 @@ button:disabled { opacity: .5; cursor: default; }
 .rewrite-group .hint { margin: 0 2px 0 0; }
 .chip-btn { font-size: 14px; padding: 5px 12px; min-height: 0; border-radius: 999px; background: var(--soft); }
 .copy-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.copy-links { margin-left: auto; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
 .alt-box { margin-top: 8px; }
 .alt-box label { margin-bottom: 0; }
 .alt-row { display: flex; gap: 10px; align-items: flex-start; }
@@ -224,6 +225,10 @@ canvas.dragging { cursor: grabbing; }
 .library .del { border: 0; background: none; color: var(--muted); min-height: 0; padding: 4px 8px; opacity: 0; }
 .library li:hover .del, .library .del:focus-visible { opacity: 1; }
 .library .del:hover { color: var(--danger); }
+.library .badge { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; background: var(--ok); }
+.library li.just-saved { animation: justSaved 2.4s ease-out; }
+@keyframes justSaved { 0%, 35% { background: color-mix(in srgb, var(--ok) 22%, transparent); box-shadow: inset 3px 0 0 var(--ok), 0 0 0 2px var(--ok); } 100% { background: transparent; box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .library li.just-saved { animation: none; box-shadow: 0 0 0 2px var(--ok); } }
 .library .empty { color: var(--muted); font-size: 14px; cursor: default; padding: 0; }
 
 /* Settings pages */
