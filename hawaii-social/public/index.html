@@ -16,6 +16,7 @@
     <span><strong>Hawaii Course</strong> social posts</span>
   </div>
   <div class="topbar-actions">
+    <span id="save-status" class="save-status" aria-live="polite"></span>
     <button id="btn-new" type="button" class="ghost">Start a new post</button>
     <div class="gear-wrap">
       <button id="btn-gear" type="button" class="gear" aria-label="Settings" aria-haspopup="menu" aria-expanded="false" title="Settings">
@@ -35,18 +36,20 @@
 <div id="banner" class="banner hidden" role="status"></div>
 
 <div class="layout">
-  <aside class="sidebar">
-    <h2>Saved posts</h2>
-    <p class="hint">Everything saves automatically.</p>
-    <ul id="library" class="library"></ul>
-  </aside>
+  <nav class="stepper" aria-label="Steps">
+    <ol>
+      <li><button type="button" class="st" data-step="1"><span class="st-dot" aria-hidden="true">1</span><span class="st-text"><span class="st-title">Pick a topic</span><span class="st-sub" id="st-sub-1"></span></span></button></li>
+      <li><button type="button" class="st" data-step="2"><span class="st-dot" aria-hidden="true">2</span><span class="st-text"><span class="st-title">Check the wording</span><span class="st-sub" id="st-sub-2"></span></span></button></li>
+      <li><button type="button" class="st" data-step="3"><span class="st-dot" aria-hidden="true">3</span><span class="st-text"><span class="st-title">Make the picture</span><span class="st-sub" id="st-sub-3"></span></span></button></li>
+      <li><button type="button" class="st" data-step="4"><span class="st-dot" aria-hidden="true">4</span><span class="st-text"><span class="st-title">Preview the posts</span><span class="st-sub" id="st-sub-4"></span></span></button></li>
+    </ol>
+  </nav>
 
   <main class="main">
     <!-- 1. Topic -->
-    <section class="panel step">
+    <section class="panel step" data-step="1">
       <header class="step-head">
-        <span class="num">1</span>
-        <h2>Pick a topic</h2>
+        <div><span class="eyebrow">Step 1 of 4</span><h2 tabindex="-1">Pick a topic</h2></div>
       </header>
       <p class="hint">These topics are inspired by the 2027 agenda and faculty bios. Choose one, or describe your own.</p>
       <div id="angles" class="chips"></div>
@@ -70,13 +73,16 @@
         <button id="btn-copy" type="button" class="primary big">Write the posts</button>
         <span id="copy-busy" class="busy hidden">Writing all three posts. This usually takes about 20 seconds.</span>
       </div>
+      <div class="step-nav">
+        <span></span>
+        <button type="button" class="primary big hidden" data-go="2" id="next-1">Next: Check the wording</button>
+      </div>
     </section>
 
     <!-- 2. Wording -->
-    <section class="panel step">
+    <section class="panel step" data-step="2">
       <header class="step-head">
-        <span class="num">2</span>
-        <h2>Check the wording</h2>
+        <div><span class="eyebrow">Step 2 of 4</span><h2 tabindex="-1">Check the wording</h2></div>
       </header>
 
       <div id="copy-empty" class="empty-state">
@@ -126,13 +132,16 @@
           </div>
         </div>
       </div>
+      <div class="step-nav">
+        <button type="button" class="ghost" data-go="1">Back</button>
+        <button type="button" class="primary big" data-go="3">Next: Make the picture</button>
+      </div>
     </section>
 
     <!-- 3. Picture: the picture on the left, the tools on the right -->
-    <section class="panel step">
+    <section class="panel step" data-step="3">
       <header class="step-head">
-        <span class="num">3</span>
-        <h2>Make the picture</h2>
+        <div><span class="eyebrow">Step 3 of 4</span><h2 tabindex="-1">Make the picture</h2></div>
         <span class="spacer"></span>
         <button id="btn-download-all" type="button" class="ghost">Download all four shapes</button>
         <button id="btn-download" type="button" class="primary">Download picture</button>
@@ -214,13 +223,16 @@
           </div>
         </div>
       </div>
+      <div class="step-nav">
+        <button type="button" class="ghost" data-go="2">Back</button>
+        <button type="button" class="primary big" data-go="4">Next: Preview the posts</button>
+      </div>
     </section>
 
     <!-- 4. Preview -->
-    <section class="panel step">
+    <section class="panel step" data-step="4">
       <header class="step-head">
-        <span class="num">4</span>
-        <h2>Preview the posts</h2>
+        <div><span class="eyebrow">Step 4 of 4</span><h2 tabindex="-1">Preview the posts</h2></div>
       </header>
       <p class="hint">A close approximation of each post in the feed, using the picture shape selected in step 3. Long posts are cut off behind "see more," so the first lines do the work. Click "see more" to read the rest.</p>
       <div id="preview-empty" class="empty-state">Previews appear here after you press <strong>Write the posts</strong>.</div>
@@ -259,8 +271,17 @@
           </div>
         </figure>
       </div>
+      <div class="step-nav">
+        <button type="button" class="ghost" data-go="3">Back</button>
+        <button type="button" class="primary big" id="btn-finish">Start a new post</button>
+      </div>
     </section>
   </main>
+
+  <aside class="sidebar">
+    <h2>Saved posts</h2>
+    <ul id="library" class="library"></ul>
+  </aside>
 </div>
 
 </div><!-- /app-view -->

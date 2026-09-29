@@ -55,7 +55,7 @@ const blankCopies = () => ({ linkedin: blankCopy(), facebook: blankCopy(), insta
 
 const state = {
   id: null, createdAt: null, brief: null,
-  angle: "", notes: "", angleTitle: "", length: "good",
+  angle: "", notes: "", angleTitle: "", length: "good", step: 1, downloaded: false,
   platform: "linkedin", linkTarget: "home",
   copy: blankCopies(), copied: {},
   imageUrl: null, imageSource: null, img: null, logo: null,
@@ -77,6 +77,14 @@ function notify(msg, { error = false, sticky = false } = {}) {
   clearTimeout(noticeTimer);
   if (!sticky) noticeTimer = setTimeout(() => n.classList.remove("show"), 3200);
 }
+// Autosave reports quietly in the top bar, and fades a few seconds later.
+let saveFadeTimer = null;
+function saveStatus(msg, error = false) {
+  const el = $("#save-status");
+  el.textContent = msg; el.className = `save-status ${error ? "error" : msg ? "ok" : ""}`;
+  clearTimeout(saveFadeTimer);
+  if (!error && msg) saveFadeTimer = setTimeout(() => el.classList.add("faded"), 4000);
+}
 const clock = (d = new Date()) => d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 function markDirty() {
   if (quiet || !hasContent()) return;
@@ -90,10 +98,12 @@ async function doSave() {
   try {
     const p = await api("/api/posts", { method: "POST", body: JSON.stringify(collectPost()) });
     state.id = p.id; state.createdAt = p.createdAt;
-    notify(`Changes saved at ${clock()}`);
+    saveStatus(`Saved ${clock()}`);
+    if ($("#notice").classList.contains("error")) $("#notice").classList.remove("show");
     refreshLibrary();
   } catch {
     dirty = true;
+    saveStatus("Not saved", true);
     notify("Your changes could not be saved. Your work is still on screen, and the app will try again in a few seconds.", { error: true, sticky: true });
     clearTimeout(saveTimer); saveTimer = setTimeout(() => { saveTimer = null; save(); }, 5000);
   }
@@ -221,6 +231,10 @@ function route() {
   }
   const page = m ? m[1] : "";
   show("#app-view", !page); show("#settings-view", Boolean(page));
+  if (!page) {
+    const sm = location.hash.match(/^#\/step\/([1-4])$/);
+    showStep(sm ? Number(sm[1]) : 1);
+  }
   if (page) {
     $$(".settings-page").forEach((p) => p.classList.toggle("hidden", p.dataset.page !== page));
     $$(".settings-nav .nav-item").forEach((a) => a.classList.toggle("current", a.dataset.page === page));
@@ -230,6 +244,52 @@ function route() {
   lastRoute = page;
 }
 window.addEventListener("hashchange", route);
+
+/* ---------- Steps ---------- */
+const STEP_COUNT = 4;
+function goTo(n) {
+  n = Math.min(STEP_COUNT, Math.max(1, n));
+  const target = `#/step/${n}`;
+  if (location.hash === target) showStep(n); else location.hash = target;
+}
+function showStep(n) {
+  const changed = n !== state.step || !$(`.main > .step[data-step="${n}"]`).classList.contains("shown");
+  state.step = n;
+  $$(".main > .step").forEach((sec) => {
+    const on = Number(sec.dataset.step) === n;
+    if (on && changed) { sec.classList.remove("shown"); void sec.offsetWidth; } // restart the slide-in
+    sec.classList.toggle("shown", on);
+  });
+  for (const a of $$(".settings-nav .back, .settings-actions .ghost-link")) a.setAttribute("href", `#/step/${n}`);
+  updateStepper();
+  if (changed) {
+    window.scrollTo({ top: 0 });
+    $(`.main > .step[data-step="${n}"] h2`).focus({ preventScroll: true });
+  }
+  if (n === 4) drawPreviewImages();
+}
+function updateStepper() {
+  const has = PLATFORMS.some((p) => state.copy[p].text);
+  const copied = PLATFORMS.filter((p) => state.copied[p]).length;
+  const topic = state.angleTitle || state.angle.trim().split(/[.?!\n]/)[0];
+  const status = {
+    1: { done: has, sub: has ? topic : topic ? "Ready to write" : "Not started" },
+    2: { done: copied === 3, sub: !has ? "Waiting on step 1" : copied ? `Copied ${copied} of 3` : "Ready to review" },
+    3: { done: state.downloaded, sub: state.downloaded ? "Picture downloaded" : state.imageUrl ? "Photo chosen" : "No photo yet" },
+    4: { done: false, sub: has ? "Look it over" : "Waiting on step 1" },
+  };
+  $$(".st").forEach((b) => {
+    const n = Number(b.dataset.step), st = status[n];
+    b.classList.toggle("current", n === state.step);
+    b.classList.toggle("done", st.done && n !== state.step);
+    b.setAttribute("aria-current", n === state.step ? "step" : "false");
+    $(`#st-sub-${n}`).textContent = st.sub;
+    b.closest("li").classList.toggle("done-line", st.done);
+  });
+  show("#next-1", has);
+}
+$$(".st").forEach((b) => (b.onclick = () => goTo(Number(b.dataset.step))));
+$$("[data-go]").forEach((b) => (b.onclick = () => goTo(Number(b.dataset.go))));
 
 /* ---------- Step 1: topic ---------- */
 function renderAngles(list) {
@@ -241,7 +301,7 @@ function renderAngles(list) {
       $$(".chip").forEach((x) => x.classList.remove("active")); c.classList.add("active");
       state.angleTitle = a.title;
       $("#angle").value = /[.?!]$/.test(a.title) ? `${a.title} ${a.pitch}` : `${a.title}. ${a.pitch}`;
-      state.angle = $("#angle").value; markDirty();
+      state.angle = $("#angle").value; updateStepper(); markDirty();
     };
     box.appendChild(c);
   }
@@ -252,7 +312,7 @@ $("#btn-angles").onclick = async () => {
   catch (e) { toast(e.message, true); }
   finally { btn.disabled = false; btn.textContent = "Suggest more topics"; }
 };
-$("#angle").oninput = (e) => { state.angle = e.target.value; markDirty(); };
+$("#angle").oninput = (e) => { state.angle = e.target.value; updateStepper(); markDirty(); };
 $("#notes").oninput = (e) => { state.notes = e.target.value; markDirty(); };
 
 async function writePosts() {
@@ -268,8 +328,8 @@ async function writePosts() {
     state.angleTitle = pkg.angleTitle;
     state.overlay.headline = pkg.headline; state.overlay.subline = pkg.subline;
     syncLookInputs(); showPlatform("linkedin"); render(); markDirty();
-    toast("Posts written. Read them over in step 2.");
-    $("#copy-area").scrollIntoView({ behavior: "smooth", block: "start" });
+    toast("Posts written. Read them over, then copy each one.");
+    goTo(2);
   } catch (e) { toast(e.message, true); }
   finally { show("#copy-busy", false); $("#btn-copy").disabled = false; }
 }
@@ -296,7 +356,7 @@ function showPlatform(p) {
   $("#btn-copy-post").textContent = `Copy ${NAMES[p]} post`;
   show("#btn-copy-link", p === "instagram");
   $("#link-target").value = state.linkTarget;
-  updateLength(); renderPreviewText();
+  updateLength(); renderPreviewText(); updateStepper();
 }
 function updateLength() {
   const p = state.platform, text = state.copy[p].text, n = text.length;
@@ -364,7 +424,7 @@ async function useImage(url, source, { keepFocus = false } = {}) {
     if (!keepFocus) { state.overlay.fx = 50; state.overlay.fy = 50; }
     $$("#gallery img").forEach((i) => i.classList.toggle("active", i.dataset.url === url));
     show("#drag-hint", true); $("#canvas").classList.add("draggable");
-    render(); markDirty();
+    render(); updateStepper(); markDirty();
   } catch { toast("That photo could not be opened.", true); }
 }
 async function refreshGallery() {
@@ -584,6 +644,7 @@ const slug = () => (state.angleTitle || state.angle || "post").toLowerCase().rep
 function download(canvas, name) { const a = document.createElement("a"); a.download = name; a.href = canvas.toDataURL("image/png"); a.click(); }
 $("#btn-download").onclick = () => {
   download($("#canvas"), `${slug()}-${SIZES[state.overlay.size].file}.png`);
+  state.downloaded = true; updateStepper(); markDirty();
   toast("Picture downloaded. You will find it in your Downloads folder.");
 };
 $("#btn-download-all").onclick = async () => {
@@ -593,6 +654,7 @@ $("#btn-download-all").onclick = async () => {
     renderTo(off, key); download(off, `${slug()}-${SIZES[key].file}.png`);
     await new Promise((r) => setTimeout(r, 350)); // spaced out so browsers do not drop any
   }
+  state.downloaded = true; updateStepper(); markDirty();
 };
 
 /* ---------- Saved posts ---------- */
@@ -601,7 +663,7 @@ function collectPost() {
     id: state.id, createdAt: state.createdAt,
     title: state.angleTitle || state.angle.trim().split(/[.?!\n]/)[0].slice(0, 60) || "Untitled post",
     angle: state.angle, notes: state.notes, angleTitle: state.angleTitle, length: state.length,
-    copy: state.copy, copied: state.copied, linkTarget: state.linkTarget,
+    copy: state.copy, copied: state.copied, linkTarget: state.linkTarget, downloaded: state.downloaded,
     imageUrl: state.imageUrl, imageSource: state.imageSource, overlay: state.overlay,
   };
 }
@@ -625,15 +687,15 @@ async function loadPost(p) {
   state.linkTarget = normalizeTarget(p.linkTarget);
   state.length = LENGTHS[p.length] ? p.length : "good"; syncLength();
   for (const k of PLATFORMS) expanded[k] = false;
-  state.copy = migrateCopy(p); state.copied = p.copied || {};
+  state.copy = migrateCopy(p); state.copied = p.copied || {}; state.downloaded = Boolean(p.downloaded);
   state.overlay = { ...freshOverlay(), footer: defaultFooter(), ...(p.overlay || {}) };
   syncLookInputs();
   state.img = null; state.imageUrl = null; show("#drag-hint", false); $("#canvas").classList.remove("draggable");
   if (p.imageUrl) await useImage(p.imageUrl, p.imageSource, { keepFocus: true });
   showPlatform("linkedin"); render();
   quiet = false;
-  highlightCurrent();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  highlightCurrent(); saveStatus("");
+  goTo(PLATFORMS.some((k) => state.copy[k].text) ? 2 : 1);
 }
 async function newPost() {
   await flush();
@@ -646,7 +708,7 @@ function resetToBlank() {
   state.id = null; state.createdAt = null; state.angleTitle = ""; state.length = "good"; syncLength();
   for (const k of PLATFORMS) expanded[k] = false;
   state.angle = ""; state.notes = ""; $("#angle").value = ""; $("#notes").value = "";
-  state.copy = blankCopies(); state.copied = {}; state.linkTarget = "home";
+  state.copy = blankCopies(); state.copied = {}; state.linkTarget = "home"; state.downloaded = false;
   state.overlay = { ...freshOverlay(), footer: defaultFooter() };
   state.img = null; state.imageUrl = null; state.imageSource = null;
   $$(".chip").forEach((x) => x.classList.remove("active"));
@@ -654,10 +716,11 @@ function resetToBlank() {
   show("#drag-hint", false); $("#canvas").classList.remove("draggable");
   syncLookInputs(); showPlatform("linkedin"); render();
   quiet = false;
-  highlightCurrent();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  highlightCurrent(); saveStatus("");
+  goTo(1);
 }
 $("#btn-new").onclick = newPost;
+$("#btn-finish").onclick = newPost;
 
 function stamp(iso) {
   if (!iso) return "";
@@ -710,6 +773,7 @@ function keyAdvice({ keyProblem, hosted }) {
 
 /* ---------- Start ---------- */
 (async function init() {
+  route(); // show the right step straight away, before data arrives
   try {
     const st = await api("/api/status");
     if (st.mock) { $("#banner").textContent = "Practice mode. The posts you get are sample text, not real writing."; show("#banner", true); }

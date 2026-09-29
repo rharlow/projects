@@ -21,14 +21,14 @@ Values in `.env` take priority over variables already set in your shell.
 
 ## What it does
 
-The screen follows the order the work happens in, with plain labels, for course staff rather than designers.
+The app walks through four steps, one screen at a time, with plain labels for course staff rather than designers. The step list on the left shows where you are, which steps are done (green check), and a one-line status for each. Click a step to jump to it, or use Back and Next at the bottom of each step. The browser's Back button works too. After **Write the posts**, the app moves to step 2 on its own.
 
 1. **Pick a topic.** Choose one of the topics drawn from the 2027 agenda and faculty bios, or describe one, and add anything specific to include. Pick a length: Short (about 500 characters), Good (about 750, recommended), or Long (about 1,000). Length counts everything, including the link and hashtags. **Write the posts** produces LinkedIn, Facebook, and Instagram versions in about 20 seconds.
 2. **Check the wording.** Each platform has one text box holding exactly what gets posted, link and hashtags included. Edit freely, or use Shorter, Stronger opening, More clinical, or Warmer. **Copy LinkedIn post** (or Facebook, or Instagram) copies it, and a check on the tab shows which ones you have copied. "Link goes to" switches all three posts between the Home page, the Course page, and the Registration page. The picture description has its own copy button for the platform's alt text box.
 3. **Make the picture.** The picture sits on the left and stays in view; the tools sit on the right. Choose a shape (Square for all three platforms, Tall for the Instagram feed, Wide for link previews, or Story), then use the Photo, Text, and Look tabs. Drag the photo in the picture to reposition it. The Foundation logo is already in place. **Download picture** is at the top of the step.
 4. **Preview the posts.** An approximation of each post in the LinkedIn, Facebook, and Instagram feeds, using the current wording and picture. Text is cut where each feed cuts it, so you can check the first lines carry the post.
 
-Work saves automatically. A green bar under the top bar confirms each save with the time, then slides away. If a save fails, the bar turns red, stays up, and the app tries again on its own. Saved posts are listed on the left with the date and time each was created and last updated.
+Work saves automatically. A small "Saved" note with the time sits in the top bar next to Start a new post and fades after a few seconds. If a save fails, a red bar appears under the top bar, stays up, and the app tries again on its own; it clears once the save goes through. Saved posts are listed on the right with the date and time each was created and last updated (under the steps on narrower screens).
 
 The gear at the top right opens the two settings pages:
 
