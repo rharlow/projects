@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Photo Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<style>
+/* Layout: full-bleed map with a places rail on the right and a timeline dock along the bottom. */
+:root {
+  --bg: #f3f5f6;
+  --surface: #ffffff;
+  --ink: #17232b;
+  --muted: #5b6b75;
+  --line: #d9e0e4;
+  --lake: #0f6e8c;          /* Lake Michigan blue: markers, selection */
+  --lake-soft: #cfe6ee;
+  --sand: #c98a2b;          /* highlight for the selected month */
+  --bar: #9fb3bd;
+  --danger: #b3402a;
+  --shadow: 0 1px 2px rgba(15, 35, 45, .08), 0 6px 20px rgba(15, 35, 45, .08);
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Instrument Sans", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f171c; --surface: #16222a; --ink: #e4ecef; --muted: #93a6b0; --line: #26353e;
+    --lake: #4cb3d4; --lake-soft: #173a48; --sand: #e3a548; --bar: #3b5260; --danger: #f08a70;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f171c; --surface: #16222a; --ink: #e4ecef; --muted: #93a6b0; --line: #26353e;
+  --lake: #4cb3d4; --lake-soft: #173a48; --sand: #e3a548; --bar: #3b5260; --danger: #f08a70;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 var(--body);
+  display: grid; grid-template-rows: auto 1fr auto; overflow: hidden;
+}
+button, input, label { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--lake); outline-offset: 2px; }
+
+/* Header */
+.top {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+  background: var(--surface); border-bottom: 1px solid var(--line); z-index: 2;
+}
+.brand { font: 700 20px/1 var(--display); letter-spacing: -.01em; margin: 0; }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 0; flex: 1; min-width: 0; }
+.stat { display: flex; align-items: baseline; gap: 6px; }
+.stat dt { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.stat dd { margin: 0; font: 500 15px var(--mono); font-variant-numeric: tabular-nums; }
+.stat.period dd { font-family: var(--display); font-weight: 600; font-size: 17px; color: var(--lake); }
+.btn {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 8px;
+  padding: 7px 12px; font-weight: 500; white-space: nowrap;
+}
+.btn:hover { border-color: var(--lake); }
+.btn.primary { background: var(--lake); border-color: var(--lake); color: var(--surface); }
+.btn.primary:hover { filter: brightness(1.08); }
+.source { font-size: 12px; color: var(--muted); }
+.source b { color: var(--sand); font-weight: 600; }
+
+/* Main */
+.main { display: grid; grid-template-columns: 1fr 320px; min-height: 0; }
+#map { min-height: 0; background: var(--bg); }
+.rail {
+  border-left: 1px solid var(--line); background: var(--surface);
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+}
+.rail-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.rail-head h2 { margin: 0; font: 600 16px var(--display); }
+.rail-head .hint { margin: 0; font-size: 12px; color: var(--muted); }
+.toggle { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: var(--muted); }
+.toggle input { margin: 2px 0 0; accent-color: var(--lake); }
+.places { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; flex: 1; }
+.places li button {
+  width: 100%; text-align: left; border: 0; background: none;
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 16px;
+}
+.places li button:hover { background: var(--bg); }
+.places .name { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.places .count { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; }
+.places .meter { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--lake-soft); overflow: hidden; }
+.places .meter i { display: block; height: 100%; background: var(--lake); }
+.places .coords { font: 11px var(--mono); color: var(--muted); }
+.empty { padding: 24px 16px; color: var(--muted); }
+
+/* Timeline */
+.dock {
+  background: var(--surface); border-top: 1px solid var(--line);
+  padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 8px; z-index: 2;
+}
+.dock-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dock-row .label { font: 600 18px var(--display); min-width: 9.5ch; }
+.dock-row .sub { color: var(--muted); font-size: 12px; flex: 1; min-width: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 6px 12px; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--lake); color: var(--surface); }
+.icon-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 34px; height: 32px; display: grid; place-items: center; }
+.icon-btn:hover { border-color: var(--lake); }
+.icon-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.hist-wrap { position: relative; }
+#hist { display: block; width: 100%; height: 56px; cursor: pointer; }
+#hist .b { fill: var(--bar); }
+#hist .b.on { fill: var(--sand); }
+#hist .b.dim { opacity: .35; }
+#hist .yr { fill: var(--muted); font: 10px var(--mono); }
+#hist .tick { stroke: var(--line); }
+#slider { width: 100%; margin: 0; accent-color: var(--lake); }
+#slider:disabled { opacity: .4; }
+
+/* Map markers */
+.pin {
+  display: grid; place-items: center; border-radius: 50%;
+  background: color-mix(in srgb, var(--lake) 82%, transparent);
+  border: 2px solid var(--surface); color: var(--surface);
+  font: 600 12px/1 var(--mono); box-shadow: var(--shadow);
+  transition: transform .15s ease;
+}
+.pin:hover { transform: scale(1.08); }
+.leaflet-container { font: 13px/1.4 var(--body); background: var(--bg); }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.leaflet-popup-content { margin: 12px 14px; min-width: 190px; }
+.pop h3 { margin: 0 0 4px; font: 600 15px var(--display); }
+.pop .n { font: 500 22px var(--mono); color: var(--lake); }
+.pop .meta { color: var(--muted); font-size: 12px; }
+.pop .btn { margin-top: 8px; padding: 4px 10px; font-size: 12px; }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--surface) 80%, transparent) !important; color: var(--muted); }
+.leaflet-control-attribution a { color: var(--lake); }
+.leaflet-bar a { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.fit-ctl { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; font-weight: 500; box-shadow: var(--shadow); }
+
+/* Import dialog */
+.overlay {
+  position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(4px);
+}
+.dialog {
+  width: min(560px, 100%); max-height: 100%; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 22px; display: grid; gap: 14px;
+}
+.dialog h2 { margin: 0; font: 700 22px var(--display); text-wrap: balance; }
+.dialog p, .dialog ol { margin: 0; color: var(--muted); }
+.dialog ol { padding-left: 20px; display: grid; gap: 4px; }
+.dialog a { color: var(--lake); }
+.drop {
+  border: 2px dashed var(--line); border-radius: 12px; padding: 22px 16px; text-align: center;
+  display: grid; gap: 10px; justify-items: center;
+}
+.drop.over { border-color: var(--lake); background: var(--lake-soft); }
+.drop .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.progress { display: grid; gap: 6px; }
+.progress .track { height: 6px; background: var(--lake-soft); border-radius: 3px; overflow: hidden; }
+.progress .track i { display: block; height: 100%; width: 0; background: var(--lake); transition: width .2s; }
+.progress .msg { font: 12px var(--mono); color: var(--muted); }
+.dialog .foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
+.err { color: var(--danger); }
+
+@media (max-width: 760px) {
+  .main { grid-template-columns: 1fr; grid-template-rows: 1fr 34%; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); }
+  .rail-head .hint { display: none; }
+  .stats { order: 3; flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1 class="brand">Photo Atlas</h1>
+  <dl class="stats" aria-live="polite">
+    <div class="stat period"><dt>Showing</dt><dd id="st-period">All time</dd></div>
+    <div class="stat"><dt>Photos</dt><dd id="st-photos">0</dd></div>
+    <div class="stat"><dt>Places</dt><dd id="st-places">0</dd></div>
+    <div class="stat"><dt>No location</dt><dd id="st-noloc">0</dd></div>
+  </dl>
+  <span class="source" id="source"></span>
+  <button class="btn primary" id="open-import" type="button">Load Google Photos</button>
+</header>
+
+<main class="main">
+  <div id="map" aria-label="Map of photo locations"></div>
+  <aside class="rail">
+    <div class="rail-head">
+      <h2>Top places</h2>
+      <p class="hint">Grouped to roughly 10 km. Click a place to fly there.</p>
+      <label class="toggle"><input type="checkbox" id="geocode" checked> <span>Show place names (sends approximate coordinates to OpenStreetMap)</span></label>
+    </div>
+    <ol class="places" id="places"></ol>
+  </aside>
+</main>
+
+<footer class="dock">
+  <div class="dock-row">
+    <div class="seg" role="group" aria-label="Time range">
+      <button type="button" id="mode-all" aria-pressed="true">All time</button>
+      <button type="button" id="mode-month" aria-pressed="false">By month</button>
+    </div>
+    <button class="icon-btn" id="prev" type="button" aria-label="Previous month with photos"><svg viewBox="0 0 16 16"><path d="M11 2 4 8l7 6z"/></svg></button>
+    <button class="icon-btn" id="play" type="button" aria-label="Play through months"><svg viewBox="0 0 16 16"><path id="play-icon" d="M4 2l10 6-10 6z"/></svg></button>
+    <button class="icon-btn" id="next" type="button" aria-label="Next month with photos"><svg viewBox="0 0 16 16"><path d="M5 2l7 6-7 6z"/></svg></button>
+    <span class="label" id="month-label">All time</span>
+    <span class="sub" id="month-sub"></span>
+  </div>
+  <div class="hist-wrap">
+    <svg id="hist" preserveAspectRatio="none" role="img" aria-label="Photos per month"></svg>
+  </div>
+  <input type="range" id="slider" min="0" max="0" value="0" step="1" aria-label="Month">
+</footer>
+
+<div class="overlay" id="import" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="import-title">
+    <h2 id="import-title">Load your Google Photos</h2>
+    <p>Google no longer lets apps read your photo library or its locations through the API, so this map reads a Google Takeout export instead. Everything stays in this browser. Nothing is uploaded.</p>
+    <ol>
+      <li>Go to <a href="https://takeout.google.com" target="_blank" rel="noopener">takeout.google.com</a>, click <b>Deselect all</b>, then check <b>Google Photos</b>.</li>
+      <li>Choose <b>.zip</b> as the file type. Any size per file works.</li>
+      <li>When Google emails you, download every part and drop them all here (or unzip and choose the folder).</li>
+    </ol>
+    <div class="drop" id="drop">
+      <div>Drop Takeout .zip files or a Takeout folder here</div>
+      <div class="actions">
+        <label class="btn primary" for="pick-zip">Choose .zip files</label>
+        <label class="btn" for="pick-dir">Choose folder</label>
+      </div>
+      <input type="file" id="pick-zip" accept=".zip,.json,application/zip" multiple hidden>
+      <input type="file" id="pick-dir" webkitdirectory multiple hidden>
+    </div>
+    <div class="progress" id="progress" hidden>
+      <div class="track"><i id="prog-bar"></i></div>
+      <div class="msg" id="prog-msg"></div>
+    </div>
+    <div class="foot">
+      <span>Only the small .json sidecar files are read. Photos themselves are never opened.</span>
+      <span style="display:flex;gap:8px">
+        <button class="btn" type="button" id="use-demo">Use demo data</button>
+        <button class="btn" type="button" id="close-import">Close</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/zip-no-worker-inflate.min.js"></script>
+<script>
+"use strict";
+(() => {
+const $ = (id) => document.getElementById(id);
+const fmt = new Intl.NumberFormat();
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MONTHS_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const monthKey = (ms) => { const d = new Date(ms); return d.getFullYear() * 12 + d.getMonth(); };
+const keyLabel = (k, long) => `${(long ? MONTHS_LONG : MONTHS)[k % 12]} ${Math.floor(k / 12)}`;
+const short = (n) => n >= 10000 ? Math.round(n / 1000) + "k" : n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n);
+const mercX = (lng) => (lng + 180) / 360;
+const mercY = (lat) => { const s = Math.sin(lat * Math.PI / 180); return 0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI); };
+
+// ---------- state ----------
+const S = {
+  photos: [],          // {t, lat, lng, x, y, k}
+  noLoc: 0,
+  byMonth: new Map(),  // monthKey -> photos[]
+  minK: 0, maxK: 0,
+  mode: "all",         // "all" | "month"
+  k: 0,                // selected month key
+  source: "demo",
+};
+
+// ---------- map ----------
+const map = L.map("map", { zoomControl: true, worldCopyJump: true, preferCanvas: true }).setView([42.96, -85.67], 4);
+const dark = window.matchMedia("(prefers-color-scheme: dark)");
+const isDark = () => {
+  const t = document.documentElement.getAttribute("data-theme");
+  return t ? t === "dark" : dark.matches;
+};
+let tiles;
+function setTiles() {
+  if (tiles) map.removeLayer(tiles);
+  tiles = L.tileLayer(`https://{s}.basemaps.cartocdn.com/${isDark() ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`, {
+    subdomains: "abcd", maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  }).addTo(map);
+}
+setTiles();
+dark.addEventListener?.("change", setTiles);
+
+const FitCtl = L.Control.extend({
+  options: { position: "topleft" },
+  onAdd() {
+    const b = L.DomUtil.create("button", "fit-ctl");
+    b.type = "button"; b.textContent = "Fit to photos";
+    L.DomEvent.disableClickPropagation(b);
+    b.onclick = () => fitTo(current());
+    return b;
+  },
+});
+map.addControl(new FitCtl());
+
+const layer = L.layerGroup().addTo(map);
+
+function current() {
+  return S.mode === "all" ? S.photos : (S.byMonth.get(S.k) || []);
+}
+
+function fitTo(list) {
+  if (!list.length) return;
+  // Trim the farthest 1% on each side so a single stray photo doesn't zoom the world out.
+  const lats = list.map(p => p.lat).sort((a, b) => a - b);
+  const lngs = list.map(p => p.lng).sort((a, b) => a - b);
+  const q = (arr, f) => arr[Math.min(arr.length - 1, Math.max(0, Math.floor(f * (arr.length - 1))))];
+  const trim = list.length > 200 ? 0.01 : 0;
+  const b = L.latLngBounds([q(lats, trim), q(lngs, trim)], [q(lats, 1 - trim), q(lngs, 1 - trim)]);
+  map.fitBounds(b.pad(0.15), { maxZoom: 12, animate: true });
+}
+
+// Zoom-aware grid clustering: photos within the same ~72px cell become one marker.
+function cluster(list, zoom) {
+  const scale = 256 * Math.pow(2, zoom) / 72;
+  const cells = new Map();
+  for (const p of list) {
+    const key = Math.floor(p.x * scale) + ":" + Math.floor(p.y * scale);
+    let c = cells.get(key);
+    if (!c) { c = { n: 0, lat: 0, lng: 0, minT: Infinity, maxT: -Infinity, months: new Set(), minLat: 90, maxLat: -90, minLng: 180, maxLng: -180 }; cells.set(key, c); }
+    c.n++; c.lat += p.lat; c.lng += p.lng;
+    if (p.t < c.minT) c.minT = p.t; if (p.t > c.maxT) c.maxT = p.t;
+    c.months.add(p.k);
+    if (p.lat < c.minLat) c.minLat = p.lat; if (p.lat > c.maxLat) c.maxLat = p.lat;
+    if (p.lng < c.minLng) c.minLng = p.lng; if (p.lng > c.maxLng) c.maxLng = p.lng;
+  }
+  for (const c of cells.values()) { c.lat /= c.n; c.lng /= c.n; }
+  return [...cells.values()];
+}
+
+function drawMarkers() {
+  layer.clearLayers();
+  const list = current();
+  const view = map.getBounds().pad(0.5);
+  const cells = cluster(list, map.getZoom());
+  for (const c of cells) {
+    if (!view.contains([c.lat, c.lng])) continue;
+    const size = Math.round(Math.min(58, 24 + 6 * Math.log2(c.n)));
+    const icon = L.divIcon({
+      className: "", iconSize: [size, size],
+      html: `<div class="pin" style="width:${size}px;height:${size}px;font-size:${size < 30 ? 11 : 12}px">${short(c.n)}</div>`,
+    });
+    const m = L.marker([c.lat, c.lng], { icon, title: `${fmt.format(c.n)} photos`, riseOnHover: true, zIndexOffset: c.n });
+    m.bindPopup(() => popupFor(c), { maxWidth: 260 });
+    layer.addLayer(m);
+  }
+}
+
+function periodText(c) {
+  const a = monthKey(c.minT), b = monthKey(c.maxT);
+  if (a === b) return keyLabel(a, true);
+  return `${keyLabel(a)} to ${keyLabel(b)}, across ${c.months.size} month${c.months.size === 1 ? "" : "s"}`;
+}
+
+function popupFor(c) {
+  const el = document.createElement("div");
+  el.className = "pop";
+  const h = document.createElement("h3");
+  h.textContent = coordText(c.lat, c.lng);
+  el.innerHTML = `<div class="n">${fmt.format(c.n)}</div><div class="meta">photo${c.n === 1 ? "" : "s"} · ${periodText(c)}</div>`;
+  el.prepend(h);
+  placeName(c.lat, c.lng).then(n => { if (n) h.textContent = n; });
+  const spread = Math.max(c.maxLat - c.minLat, c.maxLng - c.minLng);
+  if (spread > 0.002 && map.getZoom() < 16) {
+    const b = document.createElement("button");
+    b.className = "btn"; b.type = "button"; b.textContent = "Zoom in";
+    b.onclick = () => { map.closePopup(); map.fitBounds([[c.minLat, c.minLng], [c.maxLat, c.maxLng]], { padding: [40, 40], maxZoom: 16 }); };
+    el.appendChild(b);
+  }
+  return el;
+}
+
+function coordText(lat, lng) {
+  return `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? "N" : "S"}, ${Math.abs(lng).toFixed(2)}°${lng >= 0 ? "E" : "W"}`;
+}
+
+// ---------- reverse geocoding (OpenStreetMap Nominatim, 1 request per second, cached) ----------
+const GEO_KEY = "photo-atlas-places-v1";
+let geoCache = {};
+try { geoCache = JSON.parse(localStorage.getItem(GEO_KEY) || "{}"); } catch { geoCache = {}; }
+const geoQueue = [];
+const geoWaiting = new Map();
+let geoBusy = false;
+const geoOn = () => $("geocode").checked;
+try { $("geocode").checked = localStorage.getItem("photo-atlas-geocode") !== "off"; } catch {}
+
+function placeName(lat, lng) {
+  const key = lat.toFixed(1) + "," + lng.toFixed(1);
+  if (key in geoCache) return Promise.resolve(geoCache[key]);
+  if (!geoOn()) return Promise.resolve(null);
+  if (geoWaiting.has(key)) return geoWaiting.get(key).promise;
+  let resolve; const promise = new Promise(r => resolve = r);
+  geoWaiting.set(key, { promise, resolve });
+  geoQueue.push({ key, lat: +lat.toFixed(1), lng: +lng.toFixed(1) });
+  pumpGeo();
+  return promise;
+}
+async function pumpGeo() {
+  if (geoBusy) return;
+  geoBusy = true;
+  while (geoQueue.length && geoOn()) {
+    const { key, lat, lng } = geoQueue.shift();
+    let name = null;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&addressdetails=1&accept-language=en&lat=${lat}&lon=${lng}`);
+      if (r.ok) {
+        const j = await r.json();
+        const a = j.address || {};
+        const local = a.city || a.town || a.village || a.municipality || a.county || a.state_district;
+        const region = a.country_code === "us" ? a.state : (a.state && local !== a.state ? a.state : null);
+        const parts = [local, region, a.country_code === "us" ? null : a.country].filter(Boolean);
+        name = parts.length ? [...new Set(parts)].join(", ") : (j.name || null);
+        if (!name && j.error) name = "Open water";
+      }
+    } catch { name = null; }
+    if (name) { geoCache[key] = name; try { localStorage.setItem(GEO_KEY, JSON.stringify(geoCache)); } catch {} }
+    geoWaiting.get(key)?.resolve(name);
+    geoWaiting.delete(key);
+    await new Promise(r => setTimeout(r, 1100));
+  }
+  geoBusy = false;
+}
+$("geocode").addEventListener("change", () => {
+  try { localStorage.setItem("photo-atlas-geocode", geoOn() ? "on" : "off"); } catch {}
+  if (!geoOn()) { geoQueue.length = 0; for (const w of geoWaiting.values()) w.resolve(null); geoWaiting.clear(); }
+  drawPlaces();
+});
+
+// ---------- places rail ----------
+function placesFor(list) {
+  const g = new Map();
+  for (const p of list) {
+    const key = Math.round(p.lat * 10) + ":" + Math.round(p.lng * 10);
+    let c = g.get(key);
+    if (!c) { c = { n: 0, lat: 0, lng: 0 }; g.set(key, c); }
+    c.n++; c.lat += p.lat; c.lng += p.lng;
+  }
+  const out = [...g.values()];
+  for (const c of out) { c.lat /= c.n; c.lng /= c.n; }
+  return out.sort((a, b) => b.n - a.n);
+}
+
+let placesToken = 0;
+function drawPlaces() {
+  const token = ++placesToken;
+  const ol = $("places");
+  ol.innerHTML = "";
+  const places = placesFor(current());
+  $("st-places").textContent = fmt.format(places.length);
+  if (!places.length) {
+    ol.innerHTML = `<li class="empty">${S.photos.length ? "No photos with a location in this month." : "No photos loaded yet."}</li>`;
+    return;
+  }
+  const max = places[0].n;
+  for (const p of places.slice(0, 60)) {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    const coords = coordText(p.lat, p.lng);
+    b.innerHTML = `<span class="name"></span><span class="count">${fmt.format(p.n)}</span>
+      <span class="meter"><i style="width:${Math.max(2, 100 * p.n / max)}%"></i></span>
+      <span class="coords" hidden>${coords}</span>`;
+    const nameEl = b.querySelector(".name");
+    nameEl.textContent = coords;
+    b.onclick = () => map.flyTo([p.lat, p.lng], Math.max(map.getZoom(), 11), { duration: 0.8 });
+    li.appendChild(b);
+    ol.appendChild(li);
+    placeName(p.lat, p.lng).then(n => { if (n && token === placesToken) { nameEl.textContent = n; b.querySelector(".coords").hidden = false; } });
+  }
+}
+
+// ---------- timeline ----------
+function drawHist() {
+  const svg = $("hist");
+  const n = S.maxK - S.minK + 1;
+  const W = Math.max(n, 1) * 10, H = 56, base = 44;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  let max = 1;
+  for (const [, v] of S.byMonth) max = Math.max(max, v.length);
+  const sel = S.mode === "month" ? S.k : null;
+  let html = "";
+  for (let k = S.minK; k <= S.maxK; k++) {
+    const x = (k - S.minK) * 10;
+    if (k % 12 === 0) {
+      html += `<line class="tick" x1="${x}" x2="${x}" y1="0" y2="${base}"/>`;
+      if (n < 140 || (k / 12) % 2 === 0) html += `<text class="yr" x="${x + 2}" y="${H - 2}" textLength="22" lengthAdjust="spacingAndGlyphs">${k / 12}</text>`;
+    }
+    const v = (S.byMonth.get(k) || []).length;
+    if (!v) continue;
+    const h = Math.max(2, Math.sqrt(v / max) * (base - 4));
+    const cls = sel == null ? "b" : k === sel ? "b on" : "b dim";
+    html += `<rect class="${cls}" x="${x + 1}" y="${base - h}" width="8" height="${h}"><title>${keyLabel(k, true)}: ${fmt.format(v)} photos</title></rect>`;
+  }
+  svg.innerHTML = html;
+}
+
+$("hist").addEventListener("click", (e) => {
+  if (!S.photos.length) return;
+  const r = $("hist").getBoundingClientRect();
+  const n = S.maxK - S.minK + 1;
+  const k = S.minK + Math.min(n - 1, Math.max(0, Math.floor((e.clientX - r.left) / r.width * n)));
+  select("month", k);
+});
+
+function select(mode, k) {
+  S.mode = mode;
+  if (k != null) S.k = Math.min(S.maxK, Math.max(S.minK, k));
+  render();
+}
+
+function render() {
+  const list = current();
+  $("mode-all").setAttribute("aria-pressed", String(S.mode === "all"));
+  $("mode-month").setAttribute("aria-pressed", String(S.mode === "month"));
+  const slider = $("slider");
+  slider.min = S.minK; slider.max = S.maxK; slider.value = S.k;
+  slider.disabled = !S.photos.length;
+  slider.setAttribute("aria-valuetext", keyLabel(S.k, true));
+  const label = S.mode === "all" ? "All time" : keyLabel(S.k, true);
+  $("month-label").textContent = label;
+  $("st-period").textContent = label;
+  $("st-photos").textContent = fmt.format(list.length);
+  $("st-noloc").textContent = fmt.format(S.noLoc);
+  $("month-sub").textContent = !S.photos.length ? "Load your photos to see them on the map." :
+    S.mode === "all"
+      ? `${keyLabel(S.minK)} to ${keyLabel(S.maxK)} · drag the slider or click a bar to pick a month`
+      : list.length ? `${fmt.format(list.length)} photo${list.length === 1 ? "" : "s"} with a location` : "No photos with a location this month";
+  $("source").innerHTML = S.source === "demo" ? "<b>Demo data.</b> Load your own to replace it." : "";
+  drawHist();
+  drawMarkers();
+  drawPlaces();
+}
+
+$("slider").addEventListener("input", (e) => select("month", +e.target.value));
+$("mode-all").onclick = () => { stopPlay(); select("all"); };
+$("mode-month").onclick = () => select("month");
+function step(dir) {
+  stopPlay();
+  let k = S.mode === "all" ? (dir > 0 ? S.minK - 1 : S.maxK + 1) : S.k;
+  do { k += dir; } while (k >= S.minK && k <= S.maxK && !S.byMonth.has(k));
+  if (k >= S.minK && k <= S.maxK) select("month", k);
+}
+$("prev").onclick = () => step(-1);
+$("next").onclick = () => step(1);
+
+let playTimer = null;
+function stopPlay() {
+  clearInterval(playTimer); playTimer = null;
+  $("play-icon").setAttribute("d", "M4 2l10 6-10 6z");
+  $("play").setAttribute("aria-label", "Play through months");
+}
+$("play").onclick = () => {
+  if (playTimer) return stopPlay();
+  if (!S.photos.length) return;
+  if (S.mode === "all" || S.k >= S.maxK) select("month", S.minK);
+  $("play-icon").setAttribute("d", "M3 2h4v12H3zM9 2h4v12H9z");
+  $("play").setAttribute("aria-label", "Pause");
+  playTimer = setInterval(() => {
+    if (S.k >= S.maxK) return stopPlay();
+    select("month", S.k + 1);
+  }, 650);
+};
+
+let redrawPending = false;
+map.on("zoomend moveend", () => {
+  if (redrawPending) return;
+  redrawPending = true;
+  requestAnimationFrame(() => { redrawPending = false; drawMarkers(); });
+});
+
+// ---------- dataset ----------
+function setData(raw, noLoc, source) {
+  const photos = [];
+  const byMonth = new Map();
+  for (const r of raw) {
+    const p = { t: r.t, lat: r.lat, lng: r.lng, x: mercX(r.lng), y: mercY(r.lat), k: monthKey(r.t) };
+    photos.push(p);
+    let m = byMonth.get(p.k);
+    if (!m) byMonth.set(p.k, m = []);
+    m.push(p);
+  }
+  S.photos = photos; S.byMonth = byMonth; S.noLoc = noLoc; S.source = source;
+  const keys = [...byMonth.keys()];
+  S.minK = keys.length ? Math.min(...keys) : 0;
+  S.maxK = keys.length ? Math.max(...keys) : 0;
+  S.mode = "all"; S.k = S.maxK;
+  render();
+  fitTo(photos);
+}
+
+// Demo: a made-up West Michigan family's camera roll, clearly labeled as demo data.
+function demoData() {
+  let seed = 7;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
+  const out = [];
+  const add = (y, m, lat, lng, n, spread = 0.03) => {
+    for (let i = 0; i < n; i++) {
+      const day = 1 + Math.floor(rnd() * 27);
+      out.push({ t: new Date(y, m, day, 9 + Math.floor(rnd() * 11)).getTime(), lat: lat + gauss() * spread, lng: lng + gauss() * spread * 1.3 });
+    }
+  };
+  for (let y = 2020; y <= 2026; y++) {
+    for (let m = 0; m < 12; m++) {
+      if (y === 2026 && m > 8) break;
+      add(y, m, 42.963, -85.668, 25 + Math.floor(rnd() * 50), 0.04);             // Grand Rapids
+      if (m >= 5 && m <= 7) add(y, m, 42.787, -86.109, 20 + Math.floor(rnd() * 40)); // Holland, Lake Michigan
+      if (m === 6) add(y, m, 44.763, -85.621, 60 + Math.floor(rnd() * 60), 0.08);    // Traverse City
+      if (m === 7) add(y, m, 42.646, -86.202, 30, 0.02);                              // Saugatuck
+      if (m === 9 && y % 2) add(y, m, 42.280, -83.743, 25);                           // Ann Arbor
+      if ((m === 3 || m === 10) && y >= 2021) add(y, m, 41.882, -87.628, 18, 0.05);   // Chicago
+    }
+  }
+  add(2021, 7, 43.661, -70.255, 140, 0.08);   // Portland, Maine
+  add(2022, 11, 40.758, -73.985, 160, 0.04);  // New York
+  add(2023, 4, 48.857, 2.352, 220, 0.05);     // Paris
+  add(2023, 4, 52.370, 4.895, 120, 0.04);     // Amsterdam
+  add(2024, 1, 39.640, -106.374, 130, 0.08);  // Vail
+  add(2025, 2, 20.211, -87.465, 170, 0.05);   // Tulum
+  add(2025, 9, 35.676, 139.650, 260, 0.08);   // Tokyo
+  add(2025, 9, 35.011, 135.768, 140, 0.04);   // Kyoto
+  add(2026, 5, 46.598, -87.379, 90, 0.1);     // Marquette
+  return { raw: out, noLoc: Math.round(out.length * 0.18) };
+}
+
+// ---------- Takeout import ----------
+const isJson = (name) => /\.json$/i.test(name);
+function readMeta(text, seen, acc) {
+  let o;
+  try { o = JSON.parse(text); } catch { return; }
+  const ts = o && o.photoTakenTime && Number(o.photoTakenTime.timestamp);
+  if (!ts) return; // album metadata.json, print orders, etc.
+  const id = (o.title || "") + "|" + ts;
+  if (seen.has(id)) return; // the same photo appears in album folders and year folders
+  seen.add(id);
+  const pick = (g) => g && typeof g.latitude === "number" && typeof g.longitude === "number" && (g.latitude !== 0 || g.longitude !== 0) && Math.abs(g.latitude) <= 85 ? g : null;
+  const g = pick(o.geoData) || pick(o.geoDataExif);
+  if (g) acc.raw.push({ t: ts * 1000, lat: g.latitude, lng: g.longitude });
+  else acc.noLoc++;
+}
+
+function progress(frac, msg) {
+  $("progress").hidden = false;
+  $("prog-bar").style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + "%";
+  $("prog-msg").textContent = msg;
+  $("prog-msg").classList.remove("err");
+}
+
+async function pool(items, limit, fn) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; await fn(items[idx], idx); }
+  });
+  await Promise.all(workers);
+}
+
+async function importFiles(files) {
+  files = [...files];
+  const zips = files.filter(f => /\.zip$/i.test(f.name));
+  const jsons = files.filter(f => isJson(f.name));
+  const tgz = files.filter(f => /\.(tgz|tar\.gz|tar)$/i.test(f.name));
+  if (!zips.length && !jsons.length) {
+    const why = tgz.length ? "These are .tgz archives. Re-export from Takeout as .zip, or extract them and choose the folder." : "No Takeout .zip files or .json metadata found in what you picked.";
+    $("progress").hidden = false; $("prog-msg").textContent = why; $("prog-msg").classList.add("err");
+    return;
+  }
+  const acc = { raw: [], noLoc: 0 };
+  const seen = new Set();
+  let done = 0;
+  try {
+    if (zips.length) {
+      zip.configure({ useWebWorkers: false });
+      for (let zi = 0; zi < zips.length; zi++) {
+        const z = zips[zi];
+        progress(zi / zips.length, `Opening ${z.name} (${zi + 1} of ${zips.length})`);
+        const reader = new zip.ZipReader(new zip.BlobReader(z));
+        const entries = (await reader.getEntries()).filter(e => !e.directory && isJson(e.filename) && e.uncompressedSize < 2e6);
+        let n = 0;
+        await pool(entries, 6, async (e) => {
+          readMeta(await e.getData(new zip.TextWriter()), seen, acc);
+          if (++n % 250 === 0) progress((zi + n / entries.length) / zips.length, `${z.name}: ${fmt.format(n)} of ${fmt.format(entries.length)} metadata files · ${fmt.format(acc.raw.length)} with location`);
+        });
+        await reader.close();
+      }
+    }
+    if (jsons.length) {
+      await pool(jsons, 16, async (f) => {
+        readMeta(await f.text(), seen, acc);
+        if (++done % 250 === 0) progress(done / jsons.length, `${fmt.format(done)} of ${fmt.format(jsons.length)} metadata files · ${fmt.format(acc.raw.length)} with location`);
+      });
+    }
+  } catch (err) {
+    $("prog-msg").textContent = `Could not read that archive: ${err.message || err}. Make sure each download finished, then try again.`;
+    $("prog-msg").classList.add("err");
+    return;
+  }
+  if (!acc.raw.length && !acc.noLoc) {
+    $("prog-msg").textContent = "Found no Google Photos metadata. Check that the export includes Google Photos.";
+    $("prog-msg").classList.add("err");
+    return;
+  }
+  progress(1, `Done. ${fmt.format(acc.raw.length + acc.noLoc)} photos, ${fmt.format(acc.raw.length)} with a location.`);
+  setData(acc.raw, acc.noLoc, "takeout");
+  saveData(acc);
+  setTimeout(() => { $("import").hidden = true; }, 700);
+}
+
+// Folder drag-and-drop: walk directory entries.
+async function filesFromDrop(dt) {
+  const items = [...(dt.items || [])].map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (!items.length) return [...dt.files];
+  const out = [];
+  const walk = async (entry) => {
+    if (entry.isFile) {
+      if (/\.(zip|json|tgz|gz|tar)$/i.test(entry.name)) out.push(await new Promise((res, rej) => entry.file(res, rej)));
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (;;) {
+        const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+        if (!batch.length) break;
+        for (const e of batch) await walk(e);
+      }
+    }
+  };
+  for (const e of items) await walk(e);
+  return out;
+}
+
+// ---------- persistence (IndexedDB, this browser only) ----------
+function db() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("photo-atlas", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("data");
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function saveData(acc) {
+  try {
+    const n = acc.raw.length, t = new Float64Array(n), ll = new Float32Array(n * 2);
+    acc.raw.forEach((p, i) => { t[i] = p.t; ll[2 * i] = p.lat; ll[2 * i + 1] = p.lng; });
+    const d = await db();
+    d.transaction("data", "readwrite").objectStore("data").put({ t, ll, noLoc: acc.noLoc, saved: Date.now() }, "library");
+  } catch {}
+}
+async function loadData() {
+  try {
+    const d = await db();
+    const v = await new Promise((res, rej) => {
+      const r = d.transaction("data").objectStore("data").get("library");
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+    if (!v) return null;
+    const raw = [];
+    for (let i = 0; i < v.t.length; i++) raw.push({ t: v.t[i], lat: v.ll[2 * i], lng: v.ll[2 * i + 1] });
+    return { raw, noLoc: v.noLoc };
+  } catch { return null; }
+}
+async function clearData() {
+  try { const d = await db(); d.transaction("data", "readwrite").objectStore("data").delete("library"); } catch {}
+}
+
+// ---------- import dialog wiring ----------
+$("open-import").onclick = () => { $("import").hidden = false; $("progress").hidden = true; };
+$("close-import").onclick = () => { $("import").hidden = true; };
+$("import").addEventListener("click", (e) => { if (e.target === $("import")) $("import").hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("import").hidden = true; });
+$("use-demo").onclick = async () => { await clearData(); const d = demoData(); setData(d.raw, d.noLoc, "demo"); $("import").hidden = true; };
+$("pick-zip").addEventListener("change", (e) => importFiles(e.target.files));
+$("pick-dir").addEventListener("change", (e) => importFiles([...e.target.files].filter(f => isJson(f.name) || /\.zip$/i.test(f.name))));
+const drop = $("drop");
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, () => drop.classList.remove("over")));
+drop.addEventListener("drop", async (e) => { e.preventDefault(); progress(0, "Collecting files…"); importFiles(await filesFromDrop(e.dataTransfer)); });
+// Dropping anywhere on the page opens the dialog flow too.
+window.addEventListener("dragover", (e) => { e.preventDefault(); if ($("import").hidden) $("import").hidden = false; });
+window.addEventListener("drop", (e) => e.preventDefault());
+
+// ---------- boot ----------
+(async () => {
+  const saved = await loadData();
+  if (saved && (saved.raw.length || saved.noLoc)) setData(saved.raw, saved.noLoc, "takeout");
+  else { const d = demoData(); setData(d.raw, d.noLoc, "demo"); }
+})();
+})();
+</script>
+</body>
+</html>
